@@ -16,7 +16,7 @@ const DRAG_THRESHOLD_PX = 6;
 const settings = (() => {
   try {
     const s = JSON.parse(localStorage.getItem("meowdoku_settings") || "{}");
-    return { sound: s.sound !== false, vibrate: s.vibrate !== false, autoElim: !!s.autoElim };
+    return { sound: s.sound !== false, vibrate: s.vibrate !== false, autoElim: s.autoElim !== false };
   } catch { return { sound: true, vibrate: true, autoElim: false }; }
 })();
 
@@ -332,24 +332,24 @@ function flashWrong(r, c) {
 }
 
 // Auto-eliminate: when a cat is correctly placed, mark same row, same column,
-// and the surrounding 8 cells as MARK (no vibration — these are silent assists).
+// surrounding 8 cells, and entire same-region (same color) as MARK.
 function autoEliminate(r, c) {
   const n = state.n;
-  for (let j = 0; j < n; j++) {
-    if (j !== c && state.board[r][j] === EMPTY) { state.board[r][j] = MARK; updateCellView(r, j); }
-  }
-  for (let i = 0; i < n; i++) {
-    if (i !== r && state.board[i][c] === EMPTY) { state.board[i][c] = MARK; updateCellView(i, c); }
-  }
-  for (let dr = -1; dr <= 1; dr++) {
+  const region = state.regions[r][c];
+  const mark = (mr, mc) => {
+    if (state.board[mr][mc] === EMPTY) { state.board[mr][mc] = MARK; updateCellView(mr, mc); }
+  };
+  for (let j = 0; j < n; j++) if (j !== c) mark(r, j);
+  for (let i = 0; i < n; i++) if (i !== r) mark(i, c);
+  for (let dr = -1; dr <= 1; dr++)
     for (let dc = -1; dc <= 1; dc++) {
       if (dr === 0 && dc === 0) continue;
       const nr = r + dr, nc = c + dc;
-      if (nr >= 0 && nr < n && nc >= 0 && nc < n && state.board[nr][nc] === EMPTY) {
-        state.board[nr][nc] = MARK; updateCellView(nr, nc);
-      }
+      if (nr >= 0 && nr < n && nc >= 0 && nc < n) mark(nr, nc);
     }
-  }
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j < n; j++)
+      if (state.regions[i][j] === region) mark(i, j);
 }
 
 function attemptPlaceCat(r, c) {
