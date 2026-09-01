@@ -1,0 +1,180 @@
+:root {
+  /* Cell-content sizing: numbers are a percentage of the cell's own
+     width (via CSS container query units, not the whole board). Tune
+     these directly — see develop.md for how they interact. */
+  --cat-scale: 80;        /* cat emoji size */
+  --mark-scale: 80;       /* X mark bounding box (diagonal reach) */
+  --mark-thickness: 16;   /* X mark stroke thickness */
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #202124;
+  color: #e8eaed;
+  min-height: 100vh;
+}
+
+.app-header {
+  text-align: center;
+  padding: 16px 0 8px;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+#app {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 0 16px 32px;
+}
+
+.screen.hidden { display: none; }
+
+h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #9aa0a6;
+  margin: 24px 0 8px;
+}
+
+.button-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.button-grid button {
+  flex: 1 0 64px;
+  min-width: 56px;
+  padding: 12px 8px;
+  font-size: 1rem;
+  border: none;
+  border-radius: 10px;
+  background: #303134;
+  color: #e8eaed;
+  cursor: pointer;
+}
+
+.button-grid button:active { background: #3c4043; }
+.button-grid button.selected { background: #8ab4f8; color: #202124; font-weight: 700; }
+
+.game-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 16px 0 8px;
+}
+
+.game-toolbar button {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  background: #303134;
+  color: #e8eaed;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+#game-title {
+  font-weight: 600;
+  color: #9aa0a6;
+}
+
+.hearts {
+  font-size: 1rem;
+  letter-spacing: 2px;
+}
+
+.status-banner {
+  text-align: center;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+.status-banner.hidden { display: none; }
+.status-banner.win { background: #1e4620; color: #a8e6a3; }
+.status-banner.lose { background: #4a1e1e; color: #f4a8a3; }
+
+.board {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  touch-action: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.cell {
+  container-type: inline-size;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.cell .cat-icon {
+  display: none;
+  font-size: calc(var(--cat-scale) * 1cqw);
+  line-height: 1;
+}
+
+.cell .mark {
+  display: none;
+  position: relative;
+  width: calc(var(--mark-scale) * 1cqw);
+  height: calc(var(--mark-scale) * 1cqw);
+}
+
+.cell .mark .bar {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: calc(var(--mark-thickness) * 1cqw);
+  background: rgba(32, 33, 36, 0.75);
+  border-radius: calc(var(--mark-thickness) * 0.5 * 1cqw);
+}
+
+.cell .mark .bar:first-child { transform: translate(-50%, -50%) rotate(45deg); }
+.cell .mark .bar:last-child { transform: translate(-50%, -50%) rotate(-45deg); }
+
+.cell[data-state="1"] .mark { display: block; }
+.cell[data-state="2"] .cat-icon { display: block; }
+
+.cell:hover::after,
+.cell.wrong::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  pointer-events: none;
+}
+
+.cell:hover::after {
+  box-shadow: inset 0 0 0 3px rgba(32, 33, 36, 0.45);
+}
+
+.cell.wrong::after {
+  box-shadow: inset 0 0 0 3px #ea4335;
+  background: rgba(234, 67, 53, 0.3);
+}
+
+.hint {
+  text-align: center;
+  color: #9aa0a6;
+  font-size: 0.85rem;
+  margin-top: 12px;
+}
