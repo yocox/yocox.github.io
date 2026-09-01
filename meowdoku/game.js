@@ -56,7 +56,6 @@ const el = {
   hearts: document.getElementById("hearts"),
   statusBanner: document.getElementById("status-banner"),
   btnBack: document.getElementById("btn-back"),
-  btnClear: document.getElementById("btn-clear"),
   btnRestart: document.getElementById("btn-restart"),
   winModal: document.getElementById("win-modal"),
   btnNextLevel: document.getElementById("btn-next-level"),
@@ -137,28 +136,22 @@ function updateToggleUI() {
 }
 
 async function init() {
-  const res = await fetch("levels_index.json");
-  state.sizes = await res.json();
-  renderSizeButtons();
+  // Bind all event listeners synchronously BEFORE any async operations so that
+  // browser caching of an older JS file can never leave buttons unresponsive.
   updateToggleUI();
+  try { history.replaceState({ screen: "select" }, ""); } catch {}
 
-  // Establish a base history entry so the back button can return here.
-  history.replaceState({ screen: "select" }, "");
-
-  // Back button: pop the game-screen history entry → popstate shows select screen.
   el.btnBack.addEventListener("click", () => history.back());
-  el.btnClear.addEventListener("click", clearBoard);
   el.btnRestart.addEventListener("click", () => startLevel(state.n, state.levelIdx));
-  el.btnNextLevel.addEventListener("click", () => {
+  el.btnNextLevel?.addEventListener("click", () => {
     el.winModal.classList.add("hidden");
     startLevel(state.n, state.levelIdx + 1);
   });
-  el.btnModalBack.addEventListener("click", () => {
+  el.btnModalBack?.addEventListener("click", () => {
     el.winModal.classList.add("hidden");
     history.back();
   });
 
-  // Android/browser back button while in-game → return to level select.
   window.addEventListener("popstate", () => {
     if (!el.screenGame.classList.contains("hidden")) {
       el.winModal.classList.add("hidden");
@@ -166,20 +159,17 @@ async function init() {
     }
   });
 
-  // Toggle: sound
-  el.btnToggleSound.addEventListener("click", () => {
+  el.btnToggleSound?.addEventListener("click", () => {
     settings.sound = !settings.sound;
     saveSettings();
     updateToggleUI();
   });
-  // Toggle: vibrate
-  el.btnToggleVibrate.addEventListener("click", () => {
+  el.btnToggleVibrate?.addEventListener("click", () => {
     settings.vibrate = !settings.vibrate;
     saveSettings();
     updateToggleUI();
   });
-  // Toggle: auto-eliminate
-  el.btnToggleAuto.addEventListener("click", () => {
+  el.btnToggleAuto?.addEventListener("click", () => {
     settings.autoElim = !settings.autoElim;
     saveSettings();
     updateToggleUI();
@@ -189,6 +179,10 @@ async function init() {
   el.board.addEventListener("pointermove", onPointerMove);
   el.board.addEventListener("pointerup", onPointerUp);
   el.board.addEventListener("pointercancel", onPointerUp);
+
+  const res = await fetch("levels_index.json");
+  state.sizes = await res.json();
+  renderSizeButtons();
 }
 
 function renderSizeButtons() {
@@ -407,10 +401,10 @@ function cellFromPoint(clientX, clientY) {
 }
 
 function onPointerDown(e) {
-  e.preventDefault();
   if (state.gameOver || pointerId !== null) return;
   const cell = cellFromPoint(e.clientX, e.clientY);
   if (!cell) return;
+  e.preventDefault(); // only suppress default when pointer is actually over the board
 
   activeCellEl = cellEls[cell.r][cell.c];
   activeCellEl.classList.add("active");

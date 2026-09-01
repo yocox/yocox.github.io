@@ -117,6 +117,7 @@ h2 {
   color: #e8eaed;
   font-size: 0.9rem;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 #game-title {
