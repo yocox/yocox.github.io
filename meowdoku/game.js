@@ -1,10 +1,18 @@
 "use strict";
 
-// Hues: 0°…330° in 30° steps; even indices S=75% L=72% (vivid), odd S=45% L=68% (muted).
 const REGION_COLORS = [
-  "#fcbdbd", "#fcbd7e", "#fcfdbd", "#bdfc7e",
-  "#bdfcbd", "#7efcbd", "#bdfcfc", "#7ebdfc",
-  "#bdbdfc", "#bd7efc", "#fcbdfc", "#fc7ebd",
+  "#EDB9B9",  // red
+  "#B88357",  // orange
+  "#EAB226",  // amber
+  "#CCDCB3",  // lime
+  "#68B685",  // green
+  "#00FFA2",  // emerald
+  "#8CADBB",  // sky
+  "#5889C3",  // blue
+  "#3B48BA",  // indigo
+  "#BDA9D0",  // purple
+  "#AD59BA",  // fuchsia
+  "#C71370",  // pink
 ];
 
 const EMPTY = 0, MARK = 1, CAT = 2;
@@ -21,7 +29,7 @@ const settings = (() => {
 })();
 
 function saveSettings() {
-  try { localStorage.setItem("meowdoku_settings", JSON.stringify(settings)); } catch {}
+  try { localStorage.setItem("meowdoku_settings", JSON.stringify(settings)); } catch { }
 }
 
 // Completed-level tracking.
@@ -32,7 +40,7 @@ function getCompleted() {
 function saveCompleted(n, idx) {
   const done = getCompleted();
   done.add(`${n}:${idx}`);
-  try { localStorage.setItem("meowdoku_done", JSON.stringify([...done])); } catch {}
+  try { localStorage.setItem("meowdoku_done", JSON.stringify([...done])); } catch { }
 }
 
 const state = {
@@ -60,9 +68,9 @@ const el = {
   winModal: document.getElementById("win-modal"),
   btnNextLevel: document.getElementById("btn-next-level"),
   btnModalBack: document.getElementById("btn-modal-back"),
-  btnToggleSound:   document.getElementById("btn-toggle-sound"),
+  btnToggleSound: document.getElementById("btn-toggle-sound"),
   btnToggleVibrate: document.getElementById("btn-toggle-vibrate"),
-  btnToggleAuto:    document.getElementById("btn-toggle-auto"),
+  btnToggleAuto: document.getElementById("btn-toggle-auto"),
 };
 
 // ── Audio ────────────────────────────────────────────────────────────────────
@@ -128,18 +136,18 @@ function vibrate(ms) { if (settings.vibrate && navigator.vibrate) navigator.vibr
 let cellEls = [];
 
 function updateToggleUI() {
-  el.btnToggleSound.textContent   = settings.sound   ? "🔊" : "🔇";
+  el.btnToggleSound.textContent = settings.sound ? "🔊" : "🔇";
   el.btnToggleVibrate.textContent = settings.vibrate ? "📳" : "📴";
-  el.btnToggleSound.classList.toggle("off",   !settings.sound);
+  el.btnToggleSound.classList.toggle("off", !settings.sound);
   el.btnToggleVibrate.classList.toggle("off", !settings.vibrate);
-  el.btnToggleAuto.classList.toggle("off",    !settings.autoElim);
+  el.btnToggleAuto.classList.toggle("off", !settings.autoElim);
 }
 
 async function init() {
   // Bind all event listeners synchronously BEFORE any async operations so that
   // browser caching of an older JS file can never leave buttons unresponsive.
   updateToggleUI();
-  try { history.replaceState({ screen: "select" }, ""); } catch {}
+  try { history.replaceState({ screen: "select" }, ""); } catch { }
 
   el.btnBack.addEventListener("click", () => history.back());
   el.btnRestart.addEventListener("click", () => startLevel(state.n, state.levelIdx));
