@@ -15,6 +15,7 @@ body {
   background: #202124;
   color: #e8eaed;
   min-height: 100vh;
+  touch-action: manipulation; /* disables double-tap zoom on iOS Safari */
 }
 
 .app-header {
