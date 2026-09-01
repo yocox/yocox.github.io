@@ -12,6 +12,29 @@ const HEARTS_MAX = 3;
 const DOUBLE_TAP_MS = 300;
 const DRAG_THRESHOLD_PX = 6;
 
+// User-facing toggles — persisted across sessions.
+const settings = (() => {
+  try {
+    const s = JSON.parse(localStorage.getItem("meowdoku_settings") || "{}");
+    return { sound: s.sound !== false, vibrate: s.vibrate !== false, autoElim: !!s.autoElim };
+  } catch { return { sound: true, vibrate: true, autoElim: false }; }
+})();
+
+function saveSettings() {
+  try { localStorage.setItem("meowdoku_settings", JSON.stringify(settings)); } catch {}
+}
+
+// Completed-level tracking.
+function getCompleted() {
+  try { return new Set(JSON.parse(localStorage.getItem("meowdoku_done") || "[]")); }
+  catch { return new Set(); }
+}
+function saveCompleted(n, idx) {
+  const done = getCompleted();
+  done.add(`${n}:${idx}`);
+  try { localStorage.setItem("meowdoku_done", JSON.stringify([...done])); } catch {}
+}
+
 const state = {
   sizes: {},        // { "8": levelCount, ... }
   n: null,
@@ -38,6 +61,9 @@ const el = {
   winModal: document.getElementById("win-modal"),
   btnNextLevel: document.getElementById("btn-next-level"),
   btnModalBack: document.getElementById("btn-modal-back"),
+  btnToggleSound:   document.getElementById("btn-toggle-sound"),
+  btnToggleVibrate: document.getElementById("btn-toggle-vibrate"),
+  btnToggleAuto:    document.getElementById("btn-toggle-auto"),
 };
 
 // ── Audio ────────────────────────────────────────────────────────────────────
@@ -66,13 +92,17 @@ function _tone(freq, type, vol, dur, t) {
 }
 
 // Short soft tick for marking/unmarking cells (including each cell during drag).
-function playMark() { _tone(660, "sine", 0.08, 0.10); }
+function playMark() { if (settings.sound) _tone(660, "sine", 0.08, 0.10); }
 
 // Warm ding (fundamental + octave) when a cat is placed correctly.
-function playCat() { _tone(880, "sine", 0.18, 0.45); _tone(1760, "sine", 0.08, 0.45); }
+function playCat() {
+  if (!settings.sound) return;
+  _tone(880, "sine", 0.18, 0.45); _tone(1760, "sine", 0.08, 0.45);
+}
 
 // Sharp descending buzz when a cat guess is wrong.
 function playWrong() {
+  if (!settings.sound) return;
   const ctx = _getCtx(), t = ctx.currentTime;
   const osc = ctx.createOscillator(), gain = ctx.createGain();
   osc.type = "square";
@@ -86,23 +116,37 @@ function playWrong() {
 
 // C-major arpeggio (C E G C) spread over 0.3 s for the win moment.
 function playWin() {
+  if (!settings.sound) return;
   const ctx = _getCtx(), now = ctx.currentTime;
   [523, 659, 784, 1047].forEach((f, i) => _tone(f, "sine", 0.18, 0.4, now + i * 0.1));
 }
 
 // ── Haptic ───────────────────────────────────────────────────────────────────
 
-function vibrate(ms) { if (navigator.vibrate) navigator.vibrate(ms); }
+function vibrate(ms) { if (settings.vibrate && navigator.vibrate) navigator.vibrate(ms); }
 
 // Per-cell DOM elements, indexed [row][col], created once per level load.
 let cellEls = [];
+
+function updateToggleUI() {
+  el.btnToggleSound.textContent   = settings.sound   ? "🔊" : "🔇";
+  el.btnToggleVibrate.textContent = settings.vibrate ? "📳" : "📴";
+  el.btnToggleSound.classList.toggle("off",   !settings.sound);
+  el.btnToggleVibrate.classList.toggle("off", !settings.vibrate);
+  el.btnToggleAuto.classList.toggle("off",    !settings.autoElim);
+}
 
 async function init() {
   const res = await fetch("levels_index.json");
   state.sizes = await res.json();
   renderSizeButtons();
+  updateToggleUI();
 
-  el.btnBack.addEventListener("click", showSelectScreen);
+  // Establish a base history entry so the back button can return here.
+  history.replaceState({ screen: "select" }, "");
+
+  // Back button: pop the game-screen history entry → popstate shows select screen.
+  el.btnBack.addEventListener("click", () => history.back());
   el.btnClear.addEventListener("click", clearBoard);
   el.btnRestart.addEventListener("click", () => startLevel(state.n, state.levelIdx));
   el.btnNextLevel.addEventListener("click", () => {
@@ -111,7 +155,34 @@ async function init() {
   });
   el.btnModalBack.addEventListener("click", () => {
     el.winModal.classList.add("hidden");
-    showSelectScreen();
+    history.back();
+  });
+
+  // Android/browser back button while in-game → return to level select.
+  window.addEventListener("popstate", () => {
+    if (!el.screenGame.classList.contains("hidden")) {
+      el.winModal.classList.add("hidden");
+      showSelectScreen();
+    }
+  });
+
+  // Toggle: sound
+  el.btnToggleSound.addEventListener("click", () => {
+    settings.sound = !settings.sound;
+    saveSettings();
+    updateToggleUI();
+  });
+  // Toggle: vibrate
+  el.btnToggleVibrate.addEventListener("click", () => {
+    settings.vibrate = !settings.vibrate;
+    saveSettings();
+    updateToggleUI();
+  });
+  // Toggle: auto-eliminate
+  el.btnToggleAuto.addEventListener("click", () => {
+    settings.autoElim = !settings.autoElim;
+    saveSettings();
+    updateToggleUI();
   });
 
   el.board.addEventListener("pointerdown", onPointerDown);
@@ -137,13 +208,23 @@ function selectSize(n) {
   });
 
   const count = state.sizes[n];
+  const done = getCompleted();
   el.levelButtons.innerHTML = "";
   for (let i = 1; i <= count; i++) {
     const btn = document.createElement("button");
     btn.textContent = String(i);
+    btn.classList.toggle("done", done.has(`${n}:${i}`));
     btn.addEventListener("click", () => startLevel(n, i));
     el.levelButtons.appendChild(btn);
   }
+}
+
+function refreshDoneMarks() {
+  if (!state.n) return;
+  const done = getCompleted();
+  [...el.levelButtons.children].forEach((btn, i) => {
+    btn.classList.toggle("done", done.has(`${state.n}:${i + 1}`));
+  });
 }
 
 async function startLevel(n, idx) {
@@ -184,11 +265,15 @@ function parseLevel(text) {
 function showGameScreen() {
   el.screenSelect.classList.add("hidden");
   el.screenGame.classList.remove("hidden");
+  // Push only when coming from the select screen; replace when already in-game (next level).
+  if (history.state?.screen !== "game") history.pushState({ screen: "game" }, "");
+  else history.replaceState({ screen: "game" }, "");
 }
 
 function showSelectScreen() {
   el.screenGame.classList.add("hidden");
   el.screenSelect.classList.remove("hidden");
+  refreshDoneMarks();
 }
 
 function clearBoard() {
@@ -232,6 +317,7 @@ function checkWin() {
   for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (state.board[r][c] === CAT) cats++;
   if (cats === n) {
     state.gameOver = true;
+    saveCompleted(state.n, state.levelIdx);
     playWin(); vibrate(300);
     const hasNext = state.levelIdx < state.sizes[state.n];
     el.btnNextLevel.style.display = hasNext ? "" : "none";
@@ -251,12 +337,34 @@ function flashWrong(r, c) {
   setTimeout(() => cellEl.classList.remove("wrong"), 300);
 }
 
+// Auto-eliminate: when a cat is correctly placed, mark same row, same column,
+// and the surrounding 8 cells as MARK (no vibration — these are silent assists).
+function autoEliminate(r, c) {
+  const n = state.n;
+  for (let j = 0; j < n; j++) {
+    if (j !== c && state.board[r][j] === EMPTY) { state.board[r][j] = MARK; updateCellView(r, j); }
+  }
+  for (let i = 0; i < n; i++) {
+    if (i !== r && state.board[i][c] === EMPTY) { state.board[i][c] = MARK; updateCellView(i, c); }
+  }
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const nr = r + dr, nc = c + dc;
+      if (nr >= 0 && nr < n && nc >= 0 && nc < n && state.board[nr][nc] === EMPTY) {
+        state.board[nr][nc] = MARK; updateCellView(nr, nc);
+      }
+    }
+  }
+}
+
 function attemptPlaceCat(r, c) {
   if (state.gameOver || state.board[r][c] === CAT) return;
   if (state.solution[r] === c) {
     state.board[r][c] = CAT;
     updateCellView(r, c);
     playCat(); vibrate(100);
+    if (settings.autoElim) autoEliminate(r, c);
     checkWin();
   } else {
     state.hearts--;
