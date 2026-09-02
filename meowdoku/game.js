@@ -15,7 +15,7 @@ const REGION_COLORS = [
   "#C71370",  // pink
 ];
 
-const EMPTY = 0, MARK = 1, CAT = 2, HYPO = 3;
+const EMPTY = 0, MARK = 1, CAT = 2, HYPO = 3, WRONG = 4;
 const HEARTS_MAX = 3;
 const DOUBLE_TAP_MS = 300;
 const DRAG_THRESHOLD_PX = 6;
@@ -349,11 +349,6 @@ function triggerGameOver() {
   el.statusBanner.className = "status-banner lose";
 }
 
-function flashWrong(r, c) {
-  const cellEl = cellEls[r][c];
-  cellEl.classList.add("wrong");
-  setTimeout(() => cellEl.classList.remove("wrong"), 300);
-}
 
 // Auto-eliminate: when a cat is correctly placed, mark same row, same column,
 // surrounding 8 cells, and entire same-region (same color) as MARK.
@@ -377,7 +372,7 @@ function autoEliminate(r, c) {
 }
 
 function attemptPlaceCat(r, c) {
-  if (state.gameOver || state.board[r][c] === CAT) return;
+  if (state.gameOver || state.board[r][c] === CAT || state.board[r][c] === WRONG) return;
   if (state.solution[r] === c) {
     state.board[r][c] = CAT;
     updateCellView(r, c);
@@ -387,21 +382,22 @@ function attemptPlaceCat(r, c) {
   } else {
     state.hearts--;
     renderHearts();
-    flashWrong(r, c);
+    state.board[r][c] = WRONG;
+    updateCellView(r, c);
     playWrong(); vibrate(200);
     if (state.hearts <= 0) triggerGameOver();
   }
 }
 
 function toggleMark(r, c) {
-  if (state.gameOver || state.board[r][c] === CAT) return;
+  if (state.gameOver || state.board[r][c] === CAT || state.board[r][c] === WRONG) return;
   state.board[r][c] = state.board[r][c] === EMPTY ? MARK : EMPTY;
   updateCellView(r, c);
   playMark(); vibrate(50);
 }
 
 function toggleHypo(r, c) {
-  if (state.gameOver || state.board[r][c] === CAT) return;
+  if (state.gameOver || state.board[r][c] === CAT || state.board[r][c] === WRONG) return;
   state.board[r][c] = state.board[r][c] === HYPO ? EMPTY : HYPO;
   updateCellView(r, c);
   playMark(); vibrate(50);
@@ -437,8 +433,11 @@ function onPointerDown(e) {
   if (!cell) return;
   e.preventDefault(); // only suppress default when pointer is actually over the board
 
-  activeCellEl = cellEls[cell.r][cell.c];
-  activeCellEl.classList.add("active");
+  const startState = state.board[cell.r][cell.c];
+  if (startState !== WRONG) {
+    activeCellEl = cellEls[cell.r][cell.c];
+    activeCellEl.classList.add("active");
+  }
 
   pointerId = e.pointerId;
   el.board.setPointerCapture(pointerId);
@@ -448,8 +447,7 @@ function onPointerDown(e) {
   startX = e.clientX;
   startY = e.clientY;
 
-  const startState = state.board[cell.r][cell.c];
-  if (startState === CAT) dragTargetState = null;
+  if (startState === CAT || startState === WRONG) dragTargetState = null;
   else if (settings.hypo) dragTargetState = startState === HYPO ? EMPTY : HYPO;
   else dragTargetState = startState === EMPTY ? MARK : EMPTY;
 }
@@ -474,7 +472,7 @@ function paintDragCell(r, c) {
   const key = `${r},${c}`;
   if (key === lastPaintedKey) return;
   lastPaintedKey = key;
-  if (dragTargetState === null || state.board[r][c] === CAT) return;
+  if (dragTargetState === null || state.board[r][c] === CAT || state.board[r][c] === WRONG) return;
   if (state.board[r][c] === dragTargetState) return;
   const cur = state.board[r][c];
   if (settings.hypo ? (cur !== EMPTY && cur !== HYPO) : (cur !== EMPTY && cur !== MARK)) return;
@@ -497,6 +495,7 @@ function onPointerUp(e) {
 }
 
 function handleTap(r, c) {
+  if (state.board[r][c] === WRONG) return;
   const key = `${r},${c}`;
   if (pendingTap && pendingTap.key === key) {
     clearTimeout(pendingTap.timer);
