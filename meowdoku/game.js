@@ -1,18 +1,18 @@
 "use strict";
 
 const REGION_COLORS = [
-  "#EDB9B9",  // red
-  "#B88357",  // orange
-  "#EAB226",  // amber
-  "#CCDCB3",  // lime
-  "#68B685",  // green
-  "#00FFA2",  // emerald
-  "#8CADBB",  // sky
-  "#5889C3",  // blue
-  "#3B48BA",  // indigo
-  "#BDA9D0",  // purple
-  "#AD59BA",  // fuchsia
-  "#C71370",  // pink
+  "#EDB9B9",  // 粉紅
+  "#B88357",  // 棕色
+  "#EAB226",  // 黃色
+  "#CCDCB3",  // 米黃
+  "#68B685",  // 暗綠
+  "#00FFA2",  // 亮綠
+  "#8CADBB",  // 藍灰
+  "#5889C3",  // 藍色
+  "#3B48BA",  // 深藍
+  "#BDA9D0",  // 粉紫
+  "#AD59BA",  // 紫色
+  "#C71370",  // 桃紅
 ];
 
 const EMPTY = 0, MARK = 1, CAT = 2, HYPO = 3, WRONG = 4;
@@ -71,7 +71,11 @@ const el = {
   btnRestart: document.getElementById("btn-restart"),
   winModal: document.getElementById("win-modal"),
   btnNextLevel: document.getElementById("btn-next-level"),
+  btnReplay: document.getElementById("btn-replay"),
   btnModalBack: document.getElementById("btn-modal-back"),
+  helpModal: document.getElementById("help-modal"),
+  btnHelp: document.getElementById("btn-help"),
+  btnHelpClose: document.getElementById("btn-help-close"),
   btnToggleSound: document.getElementById("btn-toggle-sound"),
   btnToggleVibrate: document.getElementById("btn-toggle-vibrate"),
   btnToggleAuto: document.getElementById("btn-toggle-auto"),
@@ -161,9 +165,19 @@ async function init() {
     el.winModal.classList.add("hidden");
     startLevel(state.n, state.levelIdx + 1);
   });
+  el.btnReplay?.addEventListener("click", () => {
+    el.winModal.classList.add("hidden");
+    startLevel(state.n, state.levelIdx);
+  });
   el.btnModalBack?.addEventListener("click", () => {
     el.winModal.classList.add("hidden");
     history.back();
+  });
+
+  el.btnHelp?.addEventListener("click", () => el.helpModal.classList.remove("hidden"));
+  el.btnHelpClose?.addEventListener("click", () => el.helpModal.classList.add("hidden"));
+  el.helpModal?.addEventListener("click", (e) => {
+    if (e.target === el.helpModal) el.helpModal.classList.add("hidden");
   });
 
   window.addEventListener("popstate", () => {
@@ -345,7 +359,7 @@ function checkWin() {
 
 function triggerGameOver() {
   state.gameOver = true;
-  el.statusBanner.textContent = "💔 愛心用完了，按「重新開始」再試一次";
+  el.statusBanner.textContent = "💔 掰了，按「重來」再試一次";
   el.statusBanner.className = "status-banner lose";
 }
 
