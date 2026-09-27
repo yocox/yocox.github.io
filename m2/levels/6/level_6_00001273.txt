@@ -1,0 +1,24 @@
+6
+AAAABB
+CCABBD
+ECBBDD
+ECBDDD
+EEEFFD
+FFFFDD
+# solution: 2 4 1 5 0 3
+# difficulty: accu=2024.59 (=Σd)   max=1916.37 (=max d)   steps=13   峰值手法=inter-mixed·r4
+# weights: alpha=1.5  beta=1.0  gamma=0.2  delta=0.1  vis_cutoff=2.0
+# d = cost x f(可見度) x g(開放度) x 移動 x 換手法
+#   1 |    18.0 =   6 x1.50(vis 3.0) x2.00(open 1.00) x1.00 x1.00 | stencil-line   | 定石: 不管 亮黃 的貓貓在哪裡（(2,1)、(2,2)、(3,2)、(4,2)）都排除 (1,2)、(3,1)
+#   2 |    21.8 =   6 x1.74(vis 2.0) x1.94(open 0.94) x1.07 x1.00 | stencil        | 定石: 不管 亮藍 的貓貓在哪裡（(4,1)、(5,1)、(5,2)、(5,3)）都排除 (4,2)
+#   3 |    21.6 =   6 x1.74(vis 2.0) x1.92(open 0.92) x1.08 x1.00 | stencil-line   | 定石: 不管 亮黃 的貓貓在哪裡（(2,1)、(2,2)、(3,2)）都排除 (2,3)
+#   4 |    11.5 =   3 x1.75(vis 2.0) x1.89(open 0.89) x1.06 x1.10 | confine-line   | 亮紅 只出現在 row 1 → 排除 row 1 的其他顏色：(1,5)、(1,6)
+#   5 |    12.1 =   3 x1.99(vis 1.5) x1.83(open 0.83) x1.10 x1.00 | confine-color  | col 6 只剩 暗青 → 排除其他 col 的 暗青：(3,5)、(4,4)、(4,5)、(6,5)
+#   6 |  1916.4 = 380 x2.50(vis 1.0) x1.72(open 0.72) x1.06 x1.10 | inter-mixed    | 混色交集: 不管 row 6 的貓貓在哪裡（5 格，跨距 5）都排除 (5,5) — 其中 3 格要靠同色，最遠 4 格
+#   7 |     5.3 =   1 x2.50(vis 1.0) x1.69(open 0.69) x1.13 x1.10 | single-col     | 貓貓在 (2,5) — col 5 只剩一格
+#   8 |     2.4 =   1 x1.53(vis 2.8) x1.42(open 0.42) x1.10 x1.00 | single-color   | 貓貓在 (3,2) — 亮黃 只剩一格
+#   9 |     2.6 =   1 x1.75(vis 2.0) x1.31(open 0.31) x1.13 x1.00 | single-row     | 貓貓在 (4,6) — row 4 只剩一格
+#  10 |     6.1 =   3 x1.38(vis 4.0) x1.22(open 0.22) x1.10 x1.10 | confine-color  | row 6 只剩 暗紫 → 排除其他 row 的 暗紫：(5,4)
+#  11 |     3.4 =   1 x2.50(vis 1.0) x1.19(open 0.19) x1.03 x1.10 | single-col     | 貓貓在 (6,4) — col 4 只剩一格
+#  12 |     1.7 =   1 x1.45(vis 3.3) x1.08(open 0.08) x1.10 x1.00 | single-color   | 貓貓在 (5,1) — 亮藍 只剩一格
+#  13 |     1.7 =   1 x1.50(vis 3.0) x1.03(open 0.03) x1.13 x1.00 | single-color   | 貓貓在 (1,3) — 亮紅 只剩一格

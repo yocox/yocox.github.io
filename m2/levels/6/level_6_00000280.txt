@@ -6,3 +6,13 @@ CCDDFF
 CEEFFF
 FFFFFF
 # solution: 4 2 0 3 1 5
+# difficulty: accu=19.77 (=Σd)   max=7.28 (=max d)   steps=7   峰值手法=confine-color
+# weights: alpha=1.5  beta=1.0  gamma=0.2  delta=0.1  vis_cutoff=2.0
+# d = cost x f(可見度) x g(開放度) x 移動 x 換手法
+#   1 |     7.3 =   3 x1.21(vis 7.0) x2.00(open 1.00) x1.00 x1.00 | confine-color  | row 6 只剩 暗紫 → 排除其他 row 的 暗紫：(1,6)、(2,4)、(2,5)、(2,6)、(3,4)、(3,5)、(3,6)、(4,5)、(4,6)、(5,4)、(5,5)、(5,6)
+#   2 |     2.8 =   1 x1.43(vis 3.5) x1.67(open 0.67) x1.06 x1.10 | single-col     | 貓貓在 (6,6) — col 6 只剩一格
+#   3 |     2.5 =   1 x1.43(vis 3.5) x1.50(open 0.50) x1.17 x1.00 | single-col     | 貓貓在 (1,5) — col 5 只剩一格
+#   4 |     2.1 =   1 x1.41(vis 3.7) x1.36(open 0.36) x1.10 x1.00 | single-col     | 貓貓在 (4,4) — col 4 只剩一格
+#   5 |     1.7 =   1 x1.36(vis 4.2) x1.19(open 0.19) x1.07 x1.00 | single-color   | 貓貓在 (5,2) — 亮藍 只剩一格
+#   6 |     1.7 =   1 x1.45(vis 3.3) x1.08(open 0.08) x1.10 x1.00 | single-color   | 貓貓在 (2,3) — 暗橘 只剩一格
+#   7 |     1.6 =   1 x1.50(vis 3.0) x1.03(open 0.03) x1.07 x1.00 | single-color   | 貓貓在 (3,1) — 亮黃 只剩一格

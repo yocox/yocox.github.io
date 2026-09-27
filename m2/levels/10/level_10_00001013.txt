@@ -10,3 +10,21 @@ HHHHEIIFFD
 HHHEEIFFFI
 JJJIIIIIII
 # solution: 7 9 1 8 4 6 0 3 5 2
+# difficulty: accu=68.35 (=Σd)   max=12.19 (=max d)   steps=15   峰值手法=stencil
+# weights: alpha=1.5  beta=1.0  gamma=0.2  delta=0.1  vis_cutoff=2.0
+# d = cost x f(可見度) x g(開放度) x 移動 x 換手法
+#   1 |     2.8 =   1 x1.39(vis 3.8) x2.00(open 1.00) x1.00 x1.00 | single-color   | 貓貓在 (2,10) — 暗橘 只剩一格
+#   2 |     2.6 =   1 x1.38(vis 4.0) x1.79(open 0.79) x1.04 x1.00 | single-color   | 貓貓在 (4,9) — 暗青 只剩一格
+#   3 |     3.1 =   1 x1.64(vis 2.3) x1.62(open 0.62) x1.16 x1.00 | single-color   | 貓貓在 (7,1) — 暗紅 只剩一格
+#   4 |     7.3 =   3 x1.43(vis 3.5) x1.45(open 0.45) x1.07 x1.10 | confine-color  | row 5 只剩 亮藍 → 排除其他 row 的 亮藍：(3,3)、(3,4)、(3,5)、(3,7)、(6,5)、(8,5)、(9,4)、(9,5)
+#   5 |     7.9 =   3 x1.75(vis 2.0) x1.37(open 0.37) x1.09 x1.00 | confine-line   | 亮青 只出現在 row 10 → 排除 row 10 的其他顏色：(10,4)、(10,5)、(10,6)、(10,7)、(10,8)
+#   6 |    12.2 =   6 x1.33(vis 4.5) x1.32(open 0.32) x1.05 x1.10 | stencil        | 定石: 不管 row 10 的貓貓在哪裡（(10,2)、(10,3)）都排除 (9,2)、(9,3)
+#   7 |    12.1 =   6 x1.42(vis 3.5) x1.30(open 0.30) x1.09 x1.00 | stencil        | 定石: 不管 row 9 的貓貓在哪裡（(9,6)、(9,7)、(9,8)）都排除 (8,7)
+#   8 |     7.9 =   3 x1.74(vis 2.0) x1.29(open 0.29) x1.07 x1.10 | confine-line   | 暗黃 只出現在 col 6 → 排除 col 6 的其他顏色：(1,6)、(3,6)、(5,6)、(6,6)
+#   9 |     2.2 =   1 x1.50(vis 3.0) x1.25(open 0.25) x1.09 x1.10 | single-color   | 貓貓在 (1,8) — 亮紅 只剩一格
+#  10 |     1.9 =   1 x1.47(vis 3.2) x1.16(open 0.16) x1.12 x1.00 | single-row     | 貓貓在 (3,2) — row 3 只剩一格
+#  11 |     1.7 =   1 x1.35(vis 4.3) x1.12(open 0.12) x1.14 x1.00 | single-color   | 貓貓在 (10,3) — 亮青 只剩一格
+#  12 |     1.9 =   1 x1.60(vis 2.5) x1.09(open 0.09) x1.10 x1.00 | single-col     | 貓貓在 (5,5) — col 5 只剩一格
+#  13 |     1.5 =   1 x1.39(vis 3.8) x1.05(open 0.05) x1.06 x1.00 | single-color   | 貓貓在 (8,4) — 亮橘 只剩一格
+#  14 |     1.6 =   1 x1.45(vis 3.3) x1.03(open 0.03) x1.04 x1.00 | single-color   | 貓貓在 (9,6) — 暗黃 只剩一格
+#  15 |     1.6 =   1 x1.50(vis 3.0) x1.01(open 0.01) x1.06 x1.00 | single-color   | 貓貓在 (6,7) — 暗紫 只剩一格

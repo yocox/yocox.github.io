@@ -481,6 +481,34 @@ h2 {
   margin-bottom: 28px;
 }
 
+/* 難度分析（debug 用）：關卡檔裡 `# difficulty:` 那一整塊，原樣印在盤面下面。
+   行很長，橫向捲動而不是換行 —— 數字欄位對齊才看得出每一步差在哪。 */
+.analysis.hidden {
+  display: none;
+}
+
+.analysis {
+  margin-top: 16px;
+  background: #26272a;
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+
+.analysis summary {
+  font-size: 0.85rem;
+  color: #9aa0a6;
+  cursor: pointer;
+}
+
+.analysis pre {
+  margin: 8px 0 0;
+  overflow-x: auto;
+  font-size: 0.62rem;
+  line-height: 1.5;
+  color: #c8cbd0;
+  white-space: pre;
+}
+
 /* 過關視窗裡的難度評分：十格，點一下就存。純粹是蒐集人類體感用的資料，
    不影響星數，也不影響 difficulty.py 算出來的分數。 */
 .rating {

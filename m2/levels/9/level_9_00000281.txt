@@ -9,3 +9,21 @@ DGGGGGHHI
 DDGGGHHII
 DGGGGGHII
 # solution: 6 0 3 1 8 4 2 5 7
+# difficulty: accu=129.95 (=Σd)   max=29.88 (=max d)   steps=15   峰值手法=grp-col-color·k2
+# weights: alpha=1.5  beta=1.0  gamma=0.2  delta=0.1  vis_cutoff=2.0
+# d = cost x f(可見度) x g(開放度) x 移動 x 換手法
+#   1 |     3.3 =   1 x1.64(vis 2.3) x2.00(open 1.00) x1.00 x1.00 | single-color   | 貓貓在 (1,7) — 亮紅 只剩一格
+#   2 |     8.9 =   3 x1.43(vis 3.5) x1.77(open 0.77) x1.07 x1.10 | confine-line   | 暗橘 只出現在 row 2 → 排除 row 2 的其他顏色：(2,2)、(2,5)、(2,9)
+#   3 |     9.9 =   3 x1.75(vis 2.0) x1.73(open 0.73) x1.09 x1.00 | confine-line   | 暗紫 只出現在 col 5 → 排除 col 5 的其他顏色：(3,5)、(7,5)、(8,5)、(9,5)
+#   4 |    17.0 =   6 x1.50(vis 3.0) x1.68(open 0.68) x1.02 x1.10 | stencil        | 定石: 不管 col 5 的貓貓在哪裡（(4,5)、(5,5)、(6,5)）都排除 (5,4)、(5,6)
+#   5 |    25.4 =   6 x2.48(vis 1.0) x1.65(open 0.65) x1.03 x1.00 | stencil        | 定石: 不管 亮黃 的貓貓在哪裡（(3,4)、(3,6)、(4,6)）都排除 (4,5)
+#   6 |    18.1 =   6 x1.75(vis 2.0) x1.64(open 0.64) x1.05 x1.00 | stencil        | 定石: 不管 col 5 的貓貓在哪裡（(5,5)、(6,5)）都排除 (6,4)、(6,6)
+#   7 |    29.9 =  12 x1.30(vis 5.0) x1.62(open 0.62) x1.08 x1.10 | grp-col-color  | 2-group: {亮藍,暗黃} 只出現在 col {8,9} → 排除這些 col 的其他顏色：(5,8)、(6,8)、(6,9)、(7,8)
+#   8 |     3.5 =   1 x1.90(vis 1.7) x1.57(open 0.57) x1.06 x1.10 | single-color   | 貓貓在 (8,6) — 亮橘 只剩一格
+#   9 |     3.0 =   1 x1.90(vis 1.7) x1.43(open 0.43) x1.11 x1.00 | single-color   | 貓貓在 (3,4) — 亮黃 只剩一格
+#  10 |     2.1 =   1 x1.56(vis 2.7) x1.28(open 0.28) x1.07 x1.00 | single-color   | 貓貓在 (2,1) — 暗橘 只剩一格
+#  11 |     2.2 =   1 x1.75(vis 2.0) x1.21(open 0.21) x1.04 x1.00 | single-color   | 貓貓在 (4,2) — 暗青 只剩一格
+#  12 |     2.0 =   1 x1.56(vis 2.7) x1.11(open 0.11) x1.16 x1.00 | single-color   | 貓貓在 (5,9) — 亮藍 只剩一格
+#  13 |     1.5 =   1 x1.26(vis 5.7) x1.06(open 0.06) x1.09 x1.00 | single-color   | 貓貓在 (6,5) — 暗紫 只剩一格
+#  14 |     1.6 =   1 x1.45(vis 3.3) x1.04(open 0.04) x1.07 x1.00 | single-color   | 貓貓在 (9,8) — 暗黃 只剩一格
+#  15 |     1.7 =   1 x1.50(vis 3.0) x1.01(open 0.01) x1.11 x1.00 | single-color   | 貓貓在 (7,3) — 暗紅 只剩一格

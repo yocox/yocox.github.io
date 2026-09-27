@@ -7,3 +7,17 @@ CCBEDDD
 CCGEEFF
 CGGGEEE
 # solution: 4 2 0 6 3 5 1
+# difficulty: accu=47.52 (=Σd)   max=8.82 (=max d)   steps=11   峰值手法=confine-color
+# weights: alpha=1.5  beta=1.0  gamma=0.2  delta=0.1  vis_cutoff=2.0
+# d = cost x f(可見度) x g(開放度) x 移動 x 換手法
+#   1 |     8.6 =   3 x1.43(vis 3.5) x2.00(open 1.00) x1.00 x1.00 | confine-color  | col 1 只剩 亮黃 → 排除其他 col 的 亮黃：(1,2)、(2,2)、(3,2)、(3,3)、(4,2)、(5,2)、(6,2)
+#   2 |     4.1 =   1 x1.82(vis 1.8) x1.86(open 0.86) x1.09 x1.10 | single-col     | 貓貓在 (7,2) — col 2 只剩一格
+#   3 |     8.8 =   3 x1.43(vis 3.5) x1.67(open 0.67) x1.12 x1.10 | confine-color  | col 3 只剩 暗橘 → 排除其他 col 的 暗橘：(1,4)、(2,4)、(2,5)、(3,4)、(3,5)、(3,6)、(4,4)、(4,6)
+#   4 |     7.0 =   3 x1.43(vis 3.5) x1.51(open 0.51) x1.08 x1.00 | confine-color  | col 4 只剩 亮藍 → 排除其他 col 的 亮藍：(6,5)
+#   5 |     7.4 =   3 x1.60(vis 2.5) x1.49(open 0.49) x1.04 x1.00 | confine-line   | 暗紫 只出現在 row 6 → 排除 row 6 的其他顏色：(6,4)
+#   6 |     2.6 =   1 x1.56(vis 2.7) x1.47(open 0.47) x1.05 x1.10 | single-color   | 貓貓在 (5,4) — 亮藍 只剩一格
+#   7 |     2.2 =   1 x1.56(vis 2.7) x1.31(open 0.31) x1.09 x1.00 | single-color   | 貓貓在 (4,7) — 暗青 只剩一格
+#   8 |     1.7 =   1 x1.35(vis 4.3) x1.18(open 0.18) x1.06 x1.00 | single-color   | 貓貓在 (6,6) — 暗紫 只剩一格
+#   9 |     1.9 =   1 x1.45(vis 3.3) x1.12(open 0.12) x1.14 x1.00 | single-color   | 貓貓在 (1,5) — 亮紅 只剩一格
+#  10 |     1.6 =   1 x1.45(vis 3.3) x1.06(open 0.06) x1.06 x1.00 | single-color   | 貓貓在 (2,3) — 暗橘 只剩一格
+#  11 |     1.6 =   1 x1.50(vis 3.0) x1.02(open 0.02) x1.06 x1.00 | single-color   | 貓貓在 (3,1) — 亮黃 只剩一格

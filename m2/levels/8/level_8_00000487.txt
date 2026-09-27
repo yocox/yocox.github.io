@@ -8,3 +8,18 @@ DDEEEEFF
 DHHEEGGF
 DDHHHHFF
 # solution: 1 6 2 0 4 7 5 3
+# difficulty: accu=58.73 (=Σd)   max=15.47 (=max d)   steps=12   峰值手法=stencil
+# weights: alpha=1.5  beta=1.0  gamma=0.2  delta=0.1  vis_cutoff=2.0
+# d = cost x f(可見度) x g(開放度) x 移動 x 換手法
+#   1 |     9.6 =   3 x1.60(vis 2.5) x2.00(open 1.00) x1.00 x1.00 | confine-line   | 暗紅 只出現在 row 7 → 排除 row 7 的其他顏色：(7,1)、(7,2)、(7,3)、(7,4)、(7,5)、(7,8)
+#   2 |     8.8 =   3 x1.50(vis 3.0) x1.91(open 0.91) x1.02 x1.00 | confine-line   | 亮橘 只出現在 row 8 → 排除 row 8 的其他顏色：(8,1)、(8,2)、(8,7)、(8,8)
+#   3 |     9.3 =   3 x1.60(vis 2.5) x1.84(open 0.84) x1.05 x1.00 | confine-line   | 暗紫 只出現在 row 6 → 排除 row 6 的其他顏色：(6,1)、(6,2)、(6,3)、(6,4)、(6,5)、(6,6)
+#   4 |    15.5 =   6 x1.25(vis 6.0) x1.75(open 0.75) x1.07 x1.10 | stencil        | 定石: 不管 row 6 的貓貓在哪裡（(6,7)、(6,8)）都排除 (5,7)、(5,8)、(7,7)
+#   5 |     3.1 =   1 x1.60(vis 2.5) x1.70(open 0.70) x1.03 x1.10 | single-color   | 貓貓在 (7,6) — 暗紅 只剩一格
+#   6 |     2.2 =   1 x1.33(vis 4.5) x1.56(open 0.56) x1.05 x1.00 | single-color   | 貓貓在 (5,5) — 亮藍 只剩一格
+#   7 |     2.0 =   1 x1.29(vis 5.2) x1.41(open 0.41) x1.10 x1.00 | single-color   | 貓貓在 (4,1) — 暗青 只剩一格
+#   8 |     1.7 =   1 x1.30(vis 5.0) x1.27(open 0.27) x1.05 x1.00 | single-color   | 貓貓在 (3,3) — 亮黃 只剩一格
+#   9 |     1.5 =   1 x1.21(vis 7.2) x1.12(open 0.12) x1.12 x1.00 | single-color   | 貓貓在 (6,8) — 暗紫 只剩一格
+#  10 |     1.6 =   1 x1.31(vis 4.8) x1.08(open 0.08) x1.10 x1.00 | single-color   | 貓貓在 (8,4) — 亮橘 只剩一格
+#  11 |     1.8 =   1 x1.45(vis 3.3) x1.05(open 0.05) x1.18 x1.00 | single-color   | 貓貓在 (1,2) — 亮紅 只剩一格
+#  12 |     1.7 =   1 x1.50(vis 3.0) x1.02(open 0.02) x1.12 x1.00 | single-color   | 貓貓在 (2,7) — 暗橘 只剩一格

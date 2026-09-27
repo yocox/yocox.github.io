@@ -151,8 +151,8 @@ loadPalette();
 const settings = (() => {
   try {
     const s = JSON.parse(localStorage.getItem("meowdoku_settings") || "{}");
-    return { sound: s.sound !== false, vibrate: s.vibrate !== false, autoElim: !!s.autoElim, hypo: !!s.hypo, showHelp: s.showHelp !== false, copyAscii: !!s.copyAscii, dimMarked: s.dimMarked !== false };
-  } catch { return { sound: true, vibrate: true, autoElim: false, hypo: false, showHelp: true, copyAscii: false, dimMarked: true }; }
+    return { sound: s.sound !== false, vibrate: s.vibrate !== false, autoElim: !!s.autoElim, hypo: !!s.hypo, showHelp: s.showHelp !== false, copyAscii: !!s.copyAscii, dimMarked: s.dimMarked !== false, showAnalysis: !!s.showAnalysis };
+  } catch { return { sound: true, vibrate: true, autoElim: false, hypo: false, showHelp: true, copyAscii: false, dimMarked: true, showAnalysis: false }; }
 })();
 
 function saveSettings() {
@@ -408,6 +408,8 @@ const el = {
   winModal: document.getElementById("win-modal"),
   winTime: document.getElementById("win-time"),
   ratingCells: document.getElementById("rating-cells"),
+  analysis: document.getElementById("analysis"),
+  analysisBody: document.getElementById("analysis-body"),
   btnNextLevel: document.getElementById("btn-next-level"),
   btnReplay: document.getElementById("btn-replay"),
   btnModalBack: document.getElementById("btn-modal-back"),
@@ -734,6 +736,11 @@ async function init() {
 
   el.btnPackBack?.addEventListener("click", () => history.back());
 
+  el.analysis?.addEventListener("toggle", () => {
+    settings.showAnalysis = el.analysis.open;
+    saveSettings();
+  });
+
   // 三層：關卡包列表 → 關卡列表 → 遊戲。一律照 history.state 決定要顯示哪一層，
   // 所以瀏覽器上一頁／手機返回手勢都會退回上一層而不是直接離開。
   window.addEventListener("popstate", () => {
@@ -939,7 +946,7 @@ async function startLevel(pack, ordinal) {
   if (!path) { showSelectScreen(); showToast("找不到關卡"); return; }
   const res = await fetch(path);
   const text = await res.text();
-  const { n, regions, solution } = parseLevel(text);
+  const { n, regions, solution, analysis } = parseLevel(text);
 
   state.pack = pack;
   state.n = n;
@@ -960,6 +967,7 @@ async function startLevel(pack, ordinal) {
 
   el.gameTitle.textContent = `${packLabel(pack)} — 第 ${ordinal} 關 (${n} x ${n})`;
   el.statusBanner.classList.add("hidden");
+  renderAnalysis(analysis);
   showGameScreen();
   renderBoard();
   renderHearts();
@@ -968,9 +976,20 @@ async function startLevel(pack, ordinal) {
 }
 
 function parseLevel(text) {
-  const allLines = text.split("\n");
+  // \r? 是必要的：關卡檔在 Windows 的工作目錄裡是 CRLF，留著 \r 會讓每一列
+  // 多一個垃圾字元（盤面只讀前 n 格所以看不出來），也會讓難度分析多出空行。
+  const allLines = text.split(/\r?\n/);
   const solutionLine = allLines.find((l) => l.startsWith("# solution:"));
   const solution = solutionLine.replace("# solution:", "").trim().split(/\s+/).map(Number);
+
+  // 難度分析：`# difficulty:` 開始的那一整塊註解，原樣拿來顯示（和終端機
+  // difficulty.py --steps 是同一份格式）。只有 annotate_difficulty.py 跑過的
+  // 關卡才有，沒有就是空字串。
+  const at = allLines.findIndex((l) => l.startsWith("# difficulty:"));
+  const analysis = at < 0 ? "" : allLines.slice(at)
+    .filter((l) => l.startsWith("#"))
+    .map((l) => l.replace(/^#\s?/, ""))
+    .join("\n");
 
   const lines = allLines.filter((l) => !l.startsWith("#") && l.trim() !== "");
   const n = parseInt(lines[0], 10);
@@ -978,7 +997,16 @@ function parseLevel(text) {
   for (let r = 0; r < n; r++) {
     regions.push(lines[1 + r].split("").map((ch) => ch.charCodeAt(0) - 65));
   }
-  return { n, regions, solution };
+  return { n, regions, solution, analysis };
+}
+
+// 難度分析區塊：關卡檔沒有分析就整個藏起來；展開狀態記在 settings，這樣
+// debug 的時候不用每一關都點開。
+function renderAnalysis(text) {
+  if (!el.analysis) return;
+  el.analysisBody.textContent = text || "";
+  el.analysis.classList.toggle("hidden", !text);
+  el.analysis.open = !!text && settings.showAnalysis;
 }
 
 function showGameScreen() {

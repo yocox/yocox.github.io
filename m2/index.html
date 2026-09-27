@@ -60,6 +60,13 @@
       </div>
       <div id="status-banner" class="status-banner hidden"></div>
 
+      <!-- 難度分析：只有關卡檔裡有 `# difficulty:` 註解時才出現（目前只有專家
+           和大師兩類有，由 tools/annotate_difficulty.py 寫入）。 -->
+      <details id="analysis" class="analysis hidden">
+        <summary>難度分析</summary>
+        <pre id="analysis-body"></pre>
+      </details>
+
       <div id="win-modal" class="modal-overlay hidden">
         <div class="modal-box">
           <div class="modal-emoji">🎉</div>
