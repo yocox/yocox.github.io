@@ -111,27 +111,34 @@
       <div id="settings-modal" class="modal-overlay hidden">
         <div class="modal-box settings-box">
           <div class="modal-title" style="font-size:1.1rem;margin-bottom:16px">設定</div>
+          <!-- 開關一律是 <label> 包 checkbox：整列都可以點（手機好按），而且開關
+               狀態就是 checkbox 自己的 :checked，不用另外同步 class。滑動開關的
+               外觀全在 .switch（styles.css），沒有額外的 span。 -->
           <div class="settings-section">
-            <div class="settings-row">
+            <label class="settings-row">
               <span>音效</span>
-              <button id="btn-toggle-sound" class="tool-toggle">🔊</button>
-            </div>
-            <div class="settings-row">
+              <input type="checkbox" id="sw-sound" class="switch">
+            </label>
+            <label class="settings-row">
               <span>振動</span>
-              <button id="btn-toggle-vibrate" class="tool-toggle">📳</button>
-            </div>
-            <div class="settings-row">
+              <input type="checkbox" id="sw-vibrate" class="switch">
+            </label>
+            <label class="settings-row">
               <span>自動排除</span>
-              <button id="btn-toggle-auto" class="tool-toggle">開</button>
-            </div>
-            <div class="settings-row">
+              <input type="checkbox" id="sw-auto" class="switch">
+            </label>
+            <label class="settings-row">
               <span>排除的格子變暗</span>
-              <button id="btn-toggle-dim" class="tool-toggle">開</button>
-            </div>
-            <div class="settings-row">
+              <input type="checkbox" id="sw-dim" class="switch">
+            </label>
+            <label class="settings-row">
+              <span>「下一關」跳過滿星關卡</span>
+              <input type="checkbox" id="sw-skip-done" class="switch">
+            </label>
+            <label class="settings-row">
               <span>複製盤面（ascii／連結）</span>
-              <button id="btn-toggle-copy-ascii" class="tool-toggle">關</button>
-            </div>
+              <input type="checkbox" id="sw-copy-ascii" class="switch">
+            </label>
           </div>
           <div class="settings-section">
             <div class="settings-row">

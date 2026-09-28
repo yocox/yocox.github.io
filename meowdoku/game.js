@@ -151,8 +151,8 @@ loadPalette();
 const settings = (() => {
   try {
     const s = JSON.parse(localStorage.getItem("meowdoku_settings") || "{}");
-    return { sound: s.sound !== false, vibrate: s.vibrate !== false, autoElim: !!s.autoElim, hypo: !!s.hypo, showHelp: s.showHelp !== false, copyAscii: !!s.copyAscii, dimMarked: s.dimMarked !== false, showAnalysis: !!s.showAnalysis };
-  } catch { return { sound: true, vibrate: true, autoElim: false, hypo: false, showHelp: true, copyAscii: false, dimMarked: true, showAnalysis: false }; }
+    return { sound: s.sound !== false, vibrate: s.vibrate !== false, autoElim: !!s.autoElim, hypo: !!s.hypo, showHelp: s.showHelp !== false, copyAscii: !!s.copyAscii, dimMarked: s.dimMarked !== false, showAnalysis: !!s.showAnalysis, skipDone: !!s.skipDone };
+  } catch { return { sound: true, vibrate: true, autoElim: false, hypo: false, showHelp: true, copyAscii: false, dimMarked: true, showAnalysis: false, skipDone: false }; }
 })();
 
 function saveSettings() {
@@ -368,6 +368,20 @@ function packLabel(key) {
   return state.packIndex.get(key)?.label ?? key;
 }
 
+// 過關後按「下一關」要去第幾關。settings.skipDone 打開的話，跳過後面已經滿星
+// （三顆）的關卡 —— 只跳滿星的，一兩顆星表示還有進步空間，不算解完。
+// 後面全是滿星就退回 from + 1，也就是和開關關著時一樣（會走到包末尾的既有行為，
+// 回到選關畫面），這樣至少不會什麼都不做讓人以為按壞了。
+function nextLevelOrdinal(pack, from) {
+  const entry = state.packIndex?.get(pack);
+  if (!settings.skipDone || !entry) return from + 1;
+  const stars = getStars();
+  for (let o = from + 1; o <= entry.levels.length; o++) {
+    if ((stars[starKey(entry.levels[o - 1])] || 0) < 3) return o;
+  }
+  return from + 1;
+}
+
 
 const state = {
   manifest: null,    // packs.json
@@ -421,11 +435,12 @@ const el = {
   settingsModal: document.getElementById("settings-modal"),
   btnSettingsClose: document.getElementById("btn-settings-close"),
   btnHelpOpen: document.getElementById("btn-help-open"),
-  btnToggleSound: document.getElementById("btn-toggle-sound"),
-  btnToggleVibrate: document.getElementById("btn-toggle-vibrate"),
-  btnToggleAuto: document.getElementById("btn-toggle-auto"),
-  btnToggleCopyAscii: document.getElementById("btn-toggle-copy-ascii"),
-  btnToggleDim: document.getElementById("btn-toggle-dim"),
+  swSound: document.getElementById("sw-sound"),
+  swVibrate: document.getElementById("sw-vibrate"),
+  swAuto: document.getElementById("sw-auto"),
+  swCopyAscii: document.getElementById("sw-copy-ascii"),
+  swDim: document.getElementById("sw-dim"),
+  swSkipDone: document.getElementById("sw-skip-done"),
   btnCopyAscii: document.getElementById("btn-copy-ascii"),
   btnCopyLink: document.getElementById("btn-copy-link"),
   paletteEditor: document.getElementById("palette-editor"),
@@ -626,21 +641,15 @@ function toggleHypo() {
 }
 
 function updateToggleUI() {
-  el.btnToggleSound.textContent = settings.sound ? "🔊" : "🔇";
-  el.btnToggleVibrate.textContent = settings.vibrate ? "📳" : "📴";
-  el.btnToggleAuto.textContent = settings.autoElim ? "開" : "關";
-  el.btnToggleSound.classList.toggle("off", !settings.sound);
-  el.btnToggleVibrate.classList.toggle("off", !settings.vibrate);
-  el.btnToggleAuto.classList.toggle("off", !settings.autoElim);
+  // 設定裡的開關是 checkbox，狀態就是 .checked（CSS 靠 :checked 畫滑動效果）。
+  // 只有工具列的「假設」還是按鈕，所以它才需要 off class。
+  if (el.swSound) el.swSound.checked = settings.sound;
+  if (el.swVibrate) el.swVibrate.checked = settings.vibrate;
+  if (el.swAuto) el.swAuto.checked = settings.autoElim;
+  if (el.swDim) el.swDim.checked = settings.dimMarked;
+  if (el.swSkipDone) el.swSkipDone.checked = settings.skipDone;
+  if (el.swCopyAscii) el.swCopyAscii.checked = settings.copyAscii;
   el.btnToggleHypo?.classList.toggle("off", !settings.hypo);
-  if (el.btnToggleCopyAscii) {
-    el.btnToggleCopyAscii.textContent = settings.copyAscii ? "開" : "關";
-    el.btnToggleCopyAscii.classList.toggle("off", !settings.copyAscii);
-  }
-  if (el.btnToggleDim) {
-    el.btnToggleDim.textContent = settings.dimMarked ? "開" : "關";
-    el.btnToggleDim.classList.toggle("off", !settings.dimMarked);
-  }
   // Both buttons are opt-in via the same setting; the "c" shortcut for the
   // link works either way.
   el.btnCopyAscii?.classList.toggle("hidden", !settings.copyAscii);
@@ -690,7 +699,7 @@ async function init() {
   el.btnRedo?.addEventListener("click", doRedo);
   el.btnNextLevel?.addEventListener("click", () => {
     el.winModal.classList.add("hidden");
-    startLevel(state.pack, state.levelIdx + 1);
+    startLevel(state.pack, nextLevelOrdinal(state.pack, state.levelIdx));
   });
   el.btnReplay?.addEventListener("click", () => {
     el.winModal.classList.add("hidden");
@@ -750,32 +759,22 @@ async function init() {
     else showPackList();
   });
 
-  el.btnToggleSound?.addEventListener("click", () => {
-    settings.sound = !settings.sound;
-    saveSettings();
-    updateToggleUI();
-  });
-  el.btnToggleVibrate?.addEventListener("click", () => {
-    settings.vibrate = !settings.vibrate;
-    saveSettings();
-    updateToggleUI();
-  });
-  el.btnToggleAuto?.addEventListener("click", () => {
-    settings.autoElim = !settings.autoElim;
-    saveSettings();
-    updateToggleUI();
-  });
-  el.btnToggleCopyAscii?.addEventListener("click", () => {
-    settings.copyAscii = !settings.copyAscii;
-    saveSettings();
-    updateToggleUI();
-  });
-  el.btnToggleDim?.addEventListener("click", () => {
-    settings.dimMarked = !settings.dimMarked;
-    saveSettings();
-    updateToggleUI();
-    refreshBoardColors();
-  });
+  // checkbox 用 change 而不是 click：鍵盤（空白鍵）和點整列的 label 都會發 change，
+  // 而且事件觸發時 .checked 已經是新值，直接拿來當設定值就好。
+  const bindSwitch = (input, key, after) => {
+    input?.addEventListener("change", () => {
+      settings[key] = input.checked;
+      saveSettings();
+      updateToggleUI();
+      after?.();
+    });
+  };
+  bindSwitch(el.swSound, "sound");
+  bindSwitch(el.swVibrate, "vibrate");
+  bindSwitch(el.swAuto, "autoElim");
+  bindSwitch(el.swSkipDone, "skipDone");
+  bindSwitch(el.swCopyAscii, "copyAscii");
+  bindSwitch(el.swDim, "dimMarked", refreshBoardColors);
   el.btnCopyAscii?.addEventListener("click", () => copyBoardAscii());
   el.btnCopyLink?.addEventListener("click", () => copyRelayLink());
   el.btnToggleHypo?.addEventListener("click", toggleHypo);

@@ -628,6 +628,55 @@ h2 {
   min-width: 56px;
 }
 
+/* 整列都是 <label>，所以點文字也會切換 —— 手機上比瞄準開關好按很多。 */
+label.settings-row {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  padding: 4px 0;
+}
+
+/* 滑動開關：checkbox 自己就是軌道（appearance:none 之後它就只是一個可以上色的
+   圓角盒子），滑塊是畫在背景上的一個 radial-gradient 圓，滑動就是移動
+   background-position。**故意不用 ::before**：pseudo-element 畫在 <input> 這種
+   replaced element 上，各家瀏覽器的支援度歷來不一致，而 background 是穩的。
+   狀態不用同步 class，:checked 就是唯一的真相。
+
+   幾何：軌道 46x26，滑塊直徑 20、內縮 3 → 圓心 (13,13)、半徑 10；打開時右移
+   20px，圓心落在 33，右緣剛好也內縮 3。 */
+.switch {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  margin: 0;
+  width: 46px;
+  height: 26px;
+  border-radius: 13px;
+  cursor: pointer;
+  background-color: #4a4b50;
+  background-image: radial-gradient(circle 10px at 13px 13px,
+      #e8eaed 98%, transparent 100%);
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  transition: background-color 0.18s ease, background-position 0.18s ease;
+}
+
+.switch:checked {
+  background-color: #3f9c5a;
+  background-position: 20px 0;
+}
+
+.switch:focus-visible {
+  outline: 2px solid #8ab4f8;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch {
+    transition: none;
+  }
+}
+
 .palette-editor {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
