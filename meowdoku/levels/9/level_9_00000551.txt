@@ -1,11 +1,23 @@
 9
-BBBBCCCAH
-DBBBBBCCH
-DBBEBBCHH
-DDBEBBBBH
-FDDEEBEEH
-FFFEEEEHH
-GFEEEIIIH
-FFIIIIIIH
-FIIIIIIII
+BBBBGGGFA
+DBBBBBGGA
+DBBEBBGAA
+DDBEBBBBA
+CDDEEBEEA
+CCCEEEEAA
+HCEEEIIIA
+CCIIIIIIA
+CIIIIIIII
 # solution: 7 3 6 1 4 2 0 8 5
+# difficulty: accu=19.29 (=Σd)   max=2.92 (=max d)   steps=9   峰值手法=single-color
+# weights: alpha=1.5  beta=1.0  gamma=0.2  delta=0.1  vis_cutoff=2.0
+# d = cost x f(可見度) x g(開放度) x 移動 x 換手法
+#   1 |     2.8 =   1 x1.41(vis 3.7) x2.00(open 1.00) x1.00 x1.00 | single-color   | 貓貓在 (1,8) — 暗紫 只剩一格
+#   2 |     2.5 =   1 x1.37(vis 4.0) x1.77(open 0.77) x1.04 x1.00 | single-color   | 貓貓在 (3,7) — 暗紅 只剩一格
+#   3 |     2.9 =   1 x1.64(vis 2.3) x1.57(open 0.57) x1.13 x1.00 | single-color   | 貓貓在 (7,1) — 亮橘 只剩一格
+#   4 |     2.2 =   1 x1.50(vis 3.0) x1.38(open 0.38) x1.04 x1.00 | single-color   | 貓貓在 (6,3) — 亮黃 只剩一格
+#   5 |     1.9 =   1 x1.50(vis 3.0) x1.23(open 0.23) x1.04 x1.00 | single-color   | 貓貓在 (4,2) — 暗青 只剩一格
+#   6 |     1.9 =   1 x1.53(vis 2.8) x1.16(open 0.16) x1.07 x1.00 | single-color   | 貓貓在 (5,5) — 亮藍 只剩一格
+#   7 |     1.6 =   1 x1.32(vis 4.7) x1.09(open 0.09) x1.09 x1.00 | single-color   | 貓貓在 (8,9) — 亮紅 只剩一格
+#   8 |     1.7 =   1 x1.45(vis 3.3) x1.04(open 0.04) x1.13 x1.00 | single-color   | 貓貓在 (2,4) — 暗橘 只剩一格
+#   9 |     1.8 =   1 x1.50(vis 3.0) x1.01(open 0.01) x1.16 x1.00 | single-color   | 貓貓在 (9,6) — 暗黃 只剩一格

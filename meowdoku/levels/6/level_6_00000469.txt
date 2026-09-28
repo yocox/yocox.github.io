@@ -1,8 +1,18 @@
 6
-CCCAAD
-CBBDAD
-CBDDAD
-CBBDDD
-CEEEED
-EEEFED
+BBBEED
+BCCDED
+BCDDED
+BCCDDD
+BFFFFD
+FFFAFD
 # solution: 4 2 0 5 1 3
+# difficulty: accu=20.06 (=Σd)   max=6.05 (=max d)   steps=7   峰值手法=confine-color
+# weights: alpha=1.5  beta=1.0  gamma=0.2  delta=0.1  vis_cutoff=2.0
+# d = cost x f(可見度) x g(開放度) x 移動 x 換手法
+#   1 |     3.3 =   1 x1.64(vis 2.3) x2.00(open 1.00) x1.00 x1.00 | single-color   | 貓貓在 (6,4) — 亮紅 只剩一格
+#   2 |     2.6 =   1 x1.50(vis 3.0) x1.64(open 0.64) x1.07 x1.00 | single-color   | 貓貓在 (5,2) — 暗紫 只剩一格
+#   3 |     2.2 =   1 x1.45(vis 3.3) x1.39(open 0.39) x1.10 x1.00 | single-color   | 貓貓在 (2,3) — 亮黃 只剩一格
+#   4 |     6.1 =   3 x1.38(vis 4.0) x1.22(open 0.22) x1.09 x1.10 | confine-color  | row 4 只剩 暗青 → 排除其他 row 的 暗青：(1,6)、(3,6)
+#   5 |     2.4 =   1 x1.82(vis 1.8) x1.17(open 0.17) x1.03 x1.10 | single-col     | 貓貓在 (4,6) — col 6 只剩一格
+#   6 |     1.7 =   1 x1.45(vis 3.3) x1.08(open 0.08) x1.10 x1.00 | single-color   | 貓貓在 (1,5) — 亮藍 只剩一格
+#   7 |     1.7 =   1 x1.50(vis 3.0) x1.03(open 0.03) x1.13 x1.00 | single-color   | 貓貓在 (3,1) — 暗橘 只剩一格

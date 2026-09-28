@@ -1,8 +1,25 @@
 6
-FFAAAC
-FBBEEC
-FFFEEC
-FFDEEE
-FDDDEE
-FFFDDD
+AABBBD
+AFFCCD
+AAACCD
+AAECCC
+AEEECC
+AAAEEE
 # solution: 3 1 5 2 4 0
+# difficulty: accu=92.5 (=Σd)   max=13.76 (=max d)   steps=14   峰值手法=stencil
+# weights: alpha=1.5  beta=1.0  gamma=0.2  delta=0.1  vis_cutoff=2.0
+# d = cost x f(可見度) x g(開放度) x 移動 x 換手法
+#   1 |     7.5 =   3 x1.25(vis 6.0) x2.00(open 1.00) x1.00 x1.00 | confine-color  | col 1 只剩 亮紅 → 排除其他 col 的 亮紅：(1,2)、(3,2)、(3,3)、(4,2)、(6,2)、(6,3)
+#   2 |     8.0 =   3 x1.33(vis 4.5) x1.83(open 0.83) x1.09 x1.00 | confine-line   | 暗橘 只出現在 row 1 → 排除 row 1 的其他顏色：(1,1)、(1,6)
+#   3 |     8.1 =   3 x1.37(vis 4.0) x1.78(open 0.78) x1.10 x1.00 | confine-line   | 暗青 只出現在 col 6 → 排除 col 6 的其他顏色：(4,6)、(5,6)、(6,6)
+#   4 |     7.9 =   3 x1.43(vis 3.5) x1.69(open 0.69) x1.08 x1.00 | confine-line   | 暗紫 只出現在 row 2 → 排除 row 2 的其他顏色：(2,1)、(2,4)、(2,5)、(2,6)
+#   5 |     2.9 =   1 x1.56(vis 2.7) x1.58(open 0.58) x1.08 x1.10 | single-color   | 貓貓在 (3,6) — 暗青 只剩一格
+#   6 |    13.8 =   6 x1.30(vis 5.0) x1.44(open 0.44) x1.11 x1.10 | stencil        | 定石: 不管 row 2 的貓貓在哪裡（(2,2)、(2,3)）都排除 (1,3)
+#   7 |    13.0 =   6 x1.37(vis 4.0) x1.42(open 0.42) x1.11 x1.00 | stencil        | 定石: 不管 col 1 的貓貓在哪裡（(4,1)、(5,1)、(6,1)）都排除 (5,2)
+#   8 |     3.8 =   1 x2.29(vis 1.2) x1.39(open 0.39) x1.10 x1.10 | single-col     | 貓貓在 (2,2) — col 2 只剩一格
+#   9 |     8.5 =   3 x1.75(vis 2.0) x1.33(open 0.33) x1.11 x1.10 | confine-color  | col 3 只剩 亮藍 → 排除其他 col 的 亮藍：(5,4)、(6,4)、(6,5)
+#  10 |     3.0 =   1 x2.00(vis 1.5) x1.25(open 0.25) x1.09 x1.10 | single-row     | 貓貓在 (6,1) — row 6 只剩一格
+#  11 |    10.8 =   6 x1.30(vis 5.0) x1.17(open 0.17) x1.08 x1.10 | stencil        | 定石: 不管 row 4 的貓貓在哪裡（(4,3)、(4,4)）都排除 (5,3)
+#  12 |     1.8 =   1 x1.45(vis 3.3) x1.14(open 0.14) x1.01 x1.10 | single-color   | 貓貓在 (4,3) — 亮藍 只剩一格
+#  13 |     1.7 =   1 x1.45(vis 3.3) x1.08(open 0.08) x1.07 x1.00 | single-color   | 貓貓在 (5,5) — 亮黃 只剩一格
+#  14 |     1.7 =   1 x1.50(vis 3.0) x1.03(open 0.03) x1.13 x1.00 | single-color   | 貓貓在 (1,4) — 暗橘 只剩一格

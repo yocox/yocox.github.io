@@ -1,14 +1,41 @@
 12
-FAAAAAAAABBB
-FAFAAAAABBBC
-FAFADDDDBBCC
-FFFAAAADDDDD
-FFFFAEEEDDDD
-FFFFAEGEEEDD
-FFFFGEGEEDDD
-FIIIGGGEEDHJ
-FFIIIIGGGGHJ
-FFIIIGGKGJHJ
-IIIIIKKKJJHJ
-IILKKKKKJJJJ
+CAAAAAAAAJJJ
+CACAAAAAJJJH
+CACABBBBJJHH
+CCCAAAABBBBB
+CCCCALLLBBBB
+CCCCALELLLBB
+CCCCELELLBBB
+CGGGEEELLBFD
+CCGGGGEEEEFD
+CCGGGEEKEDFD
+GGGGGKKKDDFD
+GGIKKKKKDDDD
 # solution: 1 8 11 7 5 0 4 10 3 9 6 2
+# difficulty: accu=178.14 (=Σd)   max=18.71 (=max d)   steps=24   峰值手法=stencil-line
+# weights: alpha=1.5  beta=1.0  gamma=0.2  delta=0.1  vis_cutoff=2.0
+# d = cost x f(可見度) x g(開放度) x 移動 x 換手法
+#   1 |     3.3 =   1 x1.64(vis 2.3) x2.00(open 1.00) x1.00 x1.00 | single-color   | 貓貓在 (12,3) — 暗黃 只剩一格
+#   2 |    10.9 =   3 x1.60(vis 2.5) x1.83(open 0.83) x1.13 x1.10 | confine-line   | 暗紫 只出現在 col 11 → 排除 col 11 的其他顏色：(1,11)、(2,11)、(3,11)、(4,11)、(5,11)、(6,11)、(7,11)
+#   3 |     9.5 =   3 x1.75(vis 2.0) x1.78(open 0.78) x1.02 x1.00 | confine-line   | 亮橘 只出現在 col 12 → 排除 col 12 的其他顏色：(1,12)、(4,12)、(5,12)、(6,12)、(7,12)、(8,12)、(9,12)、(10,12)、(11,12)
+#   4 |    18.3 =   6 x1.50(vis 3.0) x1.72(open 0.72) x1.08 x1.10 | stencil-line   | 定石: 不管 暗青 的貓貓在哪裡（(10,10)、(11,9)、(11,10)）都排除 (10,9)、(11,11)
+#   5 |    14.4 =   6 x1.37(vis 4.0) x1.70(open 0.70) x1.03 x1.00 | stencil        | 定石: 不管 col 11 的貓貓在哪裡（(8,11)、(9,11)、(10,11)）都排除 (9,10)
+#   6 |    18.7 =   6 x1.75(vis 2.0) x1.69(open 0.69) x1.05 x1.00 | stencil-line   | 定石: 不管 暗藍 的貓貓在哪裡（(10,8)、(11,6)、(11,7)、(11,8)）都排除 (10,7)、(11,9)
+#   7 |    12.0 =   3 x2.00(vis 1.5) x1.68(open 0.68) x1.08 x1.10 | confine-line   | 暗青 只出現在 col 10 → 排除 col 10 的其他顏色：(1,10)、(2,10)、(3,10)、(4,10)、(5,10)、(6,10)、(7,10)、(8,10)
+#   8 |     7.4 =   3 x1.50(vis 3.0) x1.62(open 0.62) x1.02 x1.00 | confine-line   | 亮青 只出現在 col 9 → 排除 col 9 的其他顏色：(1,9)、(4,9)、(5,9)、(6,9)、(7,9)、(8,9)、(9,9)
+#   9 |    13.5 =   6 x1.25(vis 6.0) x1.58(open 0.58) x1.04 x1.10 | stencil        | 定石: 不管 col 9 的貓貓在哪裡（(2,9)、(3,9)）都排除 (2,8)、(3,8)
+#  10 |    14.6 =   6 x1.37(vis 4.0) x1.56(open 0.56) x1.13 x1.00 | stencil        | 定石: 不管 col 10 的貓貓在哪裡（(10,10)、(11,10)）都排除 (10,11)
+#  11 |    18.1 =   6 x1.74(vis 2.0) x1.56(open 0.56) x1.12 x1.00 | stencil-line   | 定石: 不管 暗橘 的貓貓在哪裡（(3,5)、(3,6)、(3,7)、(4,8)）都排除 (3,9)、(4,6)
+#  12 |     2.9 =   1 x1.64(vis 2.3) x1.54(open 0.54) x1.04 x1.10 | single-color   | 貓貓在 (2,9) — 亮青 只剩一格
+#  13 |     2.6 =   1 x1.64(vis 2.3) x1.48(open 0.48) x1.05 x1.00 | single-color   | 貓貓在 (3,12) — 亮橘 只剩一格
+#  14 |     2.9 =   1 x1.90(vis 1.7) x1.43(open 0.43) x1.07 x1.00 | single-color   | 貓貓在 (4,8) — 暗橘 只剩一格
+#  15 |     7.4 =   3 x1.50(vis 3.0) x1.33(open 0.33) x1.12 x1.10 | confine-line   | 暗藍 只出現在 row 11 → 排除 row 11 的其他顏色：(11,1)、(11,5)、(11,10)
+#  16 |     2.2 =   1 x1.43(vis 3.5) x1.31(open 0.31) x1.07 x1.10 | single-color   | 貓貓在 (10,10) — 暗青 只剩一格
+#  17 |     1.9 =   1 x1.45(vis 3.3) x1.26(open 0.26) x1.03 x1.00 | single-color   | 貓貓在 (8,11) — 暗紫 只剩一格
+#  18 |     6.3 =   3 x1.37(vis 4.0) x1.22(open 0.22) x1.15 x1.10 | confine-color  | col 1 只剩 亮黃 → 排除其他 col 的 亮黃：(5,2)、(5,4)、(6,2)、(6,4)、(7,2)、(7,4)、(9,2)
+#  19 |     2.4 =   1 x1.75(vis 2.0) x1.17(open 0.17) x1.08 x1.10 | single-col     | 貓貓在 (1,2) — col 2 只剩一格
+#  20 |     2.2 =   1 x1.75(vis 2.0) x1.11(open 0.11) x1.13 x1.00 | single-col     | 貓貓在 (9,4) — col 4 只剩一格
+#  21 |     2.1 =   1 x1.90(vis 1.7) x1.08(open 0.08) x1.03 x1.00 | single-col     | 貓貓在 (7,5) — col 5 只剩一格
+#  22 |     1.5 =   1 x1.41(vis 3.7) x1.03(open 0.03) x1.03 x1.00 | single-color   | 貓貓在 (5,6) — 粉桃 只剩一格
+#  23 |     1.4 =   1 x1.25(vis 6.0) x1.01(open 0.01) x1.08 x1.00 | single-color   | 貓貓在 (6,1) — 亮黃 只剩一格
+#  24 |     1.7 =   1 x1.50(vis 3.0) x1.01(open 0.01) x1.10 x1.00 | single-color   | 貓貓在 (11,7) — 暗藍 只剩一格

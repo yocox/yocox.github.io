@@ -151,15 +151,16 @@ loadPalette();
 const settings = (() => {
   try {
     const s = JSON.parse(localStorage.getItem("meowdoku_settings") || "{}");
-    return { sound: s.sound !== false, vibrate: s.vibrate !== false, autoElim: !!s.autoElim, hypo: !!s.hypo, showHelp: s.showHelp !== false, copyAscii: !!s.copyAscii, dimMarked: s.dimMarked !== false };
-  } catch { return { sound: true, vibrate: true, autoElim: false, hypo: false, showHelp: true, copyAscii: false, dimMarked: true }; }
+    return { sound: s.sound !== false, vibrate: s.vibrate !== false, autoElim: !!s.autoElim, hypo: !!s.hypo, showHelp: s.showHelp !== false, copyAscii: !!s.copyAscii, dimMarked: s.dimMarked !== false, showAnalysis: !!s.showAnalysis };
+  } catch { return { sound: true, vibrate: true, autoElim: false, hypo: false, showHelp: true, copyAscii: false, dimMarked: true, showAnalysis: false }; }
 })();
 
 function saveSettings() {
   try { localStorage.setItem("meowdoku_settings", JSON.stringify(settings)); } catch { }
 }
 
-// Star tracking: { "pack:idx": 1|2|3 }. Migrates old array format to object.
+// Star tracking: { "<資料夾>:<編號>": 1|2|3 }，key 由 starKey() 算（見那裡的
+// 說明：刻意和關卡包無關）。Migrates old array format to object.
 function getStars() {
   try {
     const raw = JSON.parse(localStorage.getItem("meowdoku_done") || "{}");
@@ -167,9 +168,9 @@ function getStars() {
     return (typeof raw === "object" && raw !== null) ? raw : {};
   } catch { return {}; }
 }
-function saveStars(pack, idx, stars) {
+function saveStars(id, stars) {
   const data = getStars();
-  const key = `${pack}:${idx}`;
+  const key = starKey(id);
   if ((data[key] || 0) < stars) data[key] = stars;
   saveStarsMap(data);
 }
@@ -178,35 +179,119 @@ function saveStarsMap(data) {
   try { localStorage.setItem("meowdoku_done", JSON.stringify(data)); } catch { }
 }
 
+// ── 難度評分 ────────────────────────────────────────────────────────────────
+// 過關視窗上的十格，蒐集「人覺得這關多難」。key 和星數同一套（starKey()），
+// 但另外存一個 localStorage entry：星數的值是純數字，export/import 兩邊都靠
+// 這個形狀驗證，混進物件會讓舊版 client 在匯入時把整筆丟掉。
+//
+// 一筆 = { r: 1..10 評分, t: 第一次通關用了幾毫秒, at: 評分時間 }
+// t 只在第一次通關時寫入：重玩已經解過的關卡一定比較快，那個時間沒有難度訊號。
+const RATING_MAX = 10;
+
+function getRatings() {
+  try {
+    const raw = JSON.parse(localStorage.getItem("meowdoku_ratings") || "{}");
+    return (typeof raw === "object" && raw !== null && !Array.isArray(raw)) ? raw : {};
+  } catch { return {}; }
+}
+
+function saveRatingsMap(data) {
+  try { localStorage.setItem("meowdoku_ratings", JSON.stringify(data)); } catch { }
+}
+
+function recordClear(id, elapsedMs) {
+  const data = getRatings();
+  const key = starKey(id);
+  const rec = data[key] || {};
+  if (rec.t === undefined && Number.isFinite(elapsedMs)) rec.t = Math.round(elapsedMs);
+  data[key] = rec;
+  saveRatingsMap(data);
+}
+
+function saveRating(id, value) {
+  const data = getRatings();
+  const key = starKey(id);
+  const rec = data[key] || {};
+  rec.r = value;
+  rec.at = Date.now();
+  data[key] = rec;
+  saveRatingsMap(data);
+}
+
+function renderRating(id) {
+  if (!el.ratingCells) return;
+  const mine = getRatings()[starKey(id)]?.r || 0;
+  [...el.ratingCells.children].forEach((btn, i) => {
+    btn.classList.toggle("selected", i + 1 === mine);
+  });
+}
+
+function buildRatingCells() {
+  if (!el.ratingCells) return;
+  el.ratingCells.innerHTML = "";
+  for (let v = 1; v <= RATING_MAX; v++) {
+    const btn = document.createElement("button");
+    btn.textContent = String(v);
+    btn.addEventListener("click", () => {
+      if (!state.levelId) return;
+      saveRating(state.levelId, v);
+      renderRating(state.levelId);
+    });
+    el.ratingCells.appendChild(btn);
+  }
+}
+
 // ── Progress export / import ────────────────────────────────────────────────
 // Export drops the whole star map on the clipboard as JSON; import *merges*
 // whatever is pasted back in, keeping the higher star count on every level both
 // sides have cleared. Two devices can therefore be synced in either direction
 // without a clear ever being lost.
-const PROGRESS_FORMAT = 1;
+//
+// v2 起多帶一份 ratings（過關視窗的十格評分 + 第一次通關用時）。舊版 client 讀
+// v2 只會看 stars、忽略 ratings，所以星數不會因為來回同步而掉。
+const PROGRESS_FORMAT = 2;
+const KEY_RE = /^[a-z0-9]+:[1-9][0-9]*$/i;
 
 async function exportProgress() {
   const stars = getStars();
-  const ok = await copyToClipboard(JSON.stringify({ v: PROGRESS_FORMAT, stars }));
-  showToast(ok ? `已複製 ${Object.keys(stars).length} 關的進度` : "複製失敗");
+  const ratings = getRatings();
+  const ok = await copyToClipboard(
+    JSON.stringify({ v: PROGRESS_FORMAT, stars, ratings }));
+  const rated = Object.values(ratings).filter((x) => x?.r).length;
+  showToast(ok
+    ? `已複製 ${Object.keys(stars).length} 關的進度、${rated} 筆評分`
+    : "複製失敗");
 }
 
-// Returns a cleaned star map, or null if the text is not progress data at all.
-// Keys for packs this build does not ship are kept rather than dropped: an older
-// client holding a newer one's levels must not erase them on a round trip.
+// Returns { stars, ratings } cleaned, or null if the text is not progress data
+// at all. Keys for packs this build does not ship are kept rather than dropped:
+// an older client holding a newer one's levels must not erase them on a round trip.
 function parseProgress(text) {
   let raw;
   try { raw = JSON.parse(text); } catch { return null; }
-  if (Array.isArray(raw)) raw = Object.fromEntries(raw.map((k) => [k, 1]));      // pre-stars format
-  else if (raw && typeof raw.stars === "object" && raw.stars) raw = raw.stars;  // wrapped export
+  if (Array.isArray(raw)) raw = { stars: Object.fromEntries(raw.map((k) => [k, 1])) };
   if (!raw || typeof raw !== "object") return null;
-  const out = {};
-  for (const [key, stars] of Object.entries(raw)) {
-    if (!/^[a-z0-9]+:[1-9][0-9]*$/i.test(key)) continue;
-    if (!Number.isInteger(stars) || stars < 1 || stars > HEARTS_MAX) continue;
-    out[key] = stars;
+  const wrapped = typeof raw.stars === "object" && raw.stars;
+  const starsIn = wrapped ? raw.stars : raw;  // 沒包起來的就是純星數 map
+  const ratingsIn = (wrapped && typeof raw.ratings === "object" && raw.ratings) || {};
+  if (typeof starsIn !== "object") return null;
+
+  const stars = {};
+  for (const [key, s] of Object.entries(starsIn)) {
+    if (!KEY_RE.test(key)) continue;
+    if (!Number.isInteger(s) || s < 1 || s > HEARTS_MAX) continue;
+    stars[key] = s;
   }
-  return out;
+  const ratings = {};
+  for (const [key, rec] of Object.entries(ratingsIn)) {
+    if (!KEY_RE.test(key) || !rec || typeof rec !== "object") continue;
+    const out = {};
+    if (Number.isInteger(rec.r) && rec.r >= 1 && rec.r <= RATING_MAX) out.r = rec.r;
+    if (Number.isInteger(rec.t) && rec.t >= 0) out.t = rec.t;
+    if (Number.isInteger(rec.at) && rec.at > 0) out.at = rec.at;
+    if (Object.keys(out).length) ratings[key] = out;
+  }
+  return { stars, ratings };
 }
 
 // Returns false only when the paste could not be read as progress at all, so the
@@ -216,16 +301,34 @@ function importProgress(text) {
   if (!incoming) { showToast("匯入失敗：格式不對"); return false; }
   const data = getStars();
   let added = 0, improved = 0;
-  for (const [key, stars] of Object.entries(incoming)) {
+  for (const [key, stars] of Object.entries(incoming.stars)) {
     const have = data[key] || 0;
     if (stars <= have) continue;
     if (have === 0) added++; else improved++;
     data[key] = stars;
   }
-  if (added || improved) {
-    saveStarsMap(data);
+
+  // 評分：at 比較新的贏。t 只補沒有的 —— 已經記著的是那台機器第一次通關的
+  // 時間，換成別台的時間只會讓資料變髒。
+  const rmap = getRatings();
+  let rated = 0;
+  for (const [key, rec] of Object.entries(incoming.ratings)) {
+    const have = rmap[key] || {};
+    let touched = false;
+    if (rec.r && (!have.r || (rec.at || 0) > (have.at || 0))) {
+      have.r = rec.r;
+      have.at = rec.at || Date.now();
+      touched = true;
+    }
+    if (have.t === undefined && rec.t !== undefined) { have.t = rec.t; touched = true; }
+    if (touched) { rmap[key] = have; rated++; }
+  }
+
+  if (added || improved || rated) {
+    if (added || improved) saveStarsMap(data);
+    if (rated) saveRatingsMap(rmap);
     refreshDoneMarks();
-    showToast(`已合併：新增 ${added} 關、${improved} 關星數提升`);
+    showToast(`已合併：新增 ${added} 關、${improved} 關星數提升、${rated} 筆評分`);
   } else {
     showToast("沒有新進度可以合併");
   }
@@ -234,30 +337,46 @@ function importProgress(text) {
 
 // Packs shown after the numeric board-size packs, in this order. Their levels
 // are mixed-size, so board size comes from each level file rather than the key.
-const EXTRA_PACKS = ["hard", "bad"];
-const PACK_LABELS = { hard: "困難", bad: "需猜測" };
-const PACK_HINTS = {
-  hard: "純邏輯可解，但需要較進階的推理",
-  bad: "無法只靠推理解開，必須猜測",
-};
+// 關卡包由 web/packs.json 定義（tools/build_packs.py 產生）：難度分數分成六個
+// 大類，一個大類裝不下 100 關就切成「簡單 1」「簡單 2」…。一個關卡包就是一串
+// 關卡 id，順序沒有意義 —— 以後補關卡、淘汰關卡只要改那串 id。
+//
+// 關卡 id 就是關卡檔的檔名主幹，例如 level_12_00000999：裡面的 12 是盤面大小
+// 也是它放在哪個資料夾，所以 id 自己就能算出檔案路徑。目錄純粹是存放位置
+// （順便讓 7000 多個檔案不要擠在一起），不再代表關卡包。
+const LEVEL_ID_RE = /^level_([a-z0-9]+)_(\d+)$/i;
 
-function packLabel(pack) {
-  return PACK_LABELS[pack] ?? `${pack} x ${pack}`;
+// id → { dir, idx }。dir 是資料夾名（盤面大小，或 bad）。
+function levelRef(id) {
+  const m = LEVEL_ID_RE.exec(id);
+  return m ? { dir: m[1], idx: parseInt(m[2], 10) } : null;
 }
 
-function comparePacks(a, b) {
-  const ia = EXTRA_PACKS.indexOf(a), ib = EXTRA_PACKS.indexOf(b);
-  if (ia === -1 && ib === -1) return Number(a) - Number(b);
-  if (ia === -1) return -1;
-  if (ib === -1) return 1;
-  return ia - ib;
+function levelPath(id) {
+  const ref = levelRef(id);
+  return ref ? `levels/${ref.dir}/${id}.txt` : null;
 }
+
+// 星數的 key 用「資料夾:編號」，和難度分包無關 —— 關卡以後換到別包，紀錄還在。
+// 這剛好也是舊版數字關卡包用的 key，所以舊存檔不用搬。
+function starKey(id) {
+  const ref = levelRef(id);
+  return ref ? `${ref.dir}:${ref.idx}` : id;
+}
+
+function packLabel(key) {
+  return state.packIndex.get(key)?.label ?? key;
+}
+
 
 const state = {
-  packs: {},        // { "8": levelCount, ..., "hard": 372, "bad": 365 }
-  pack: null,       // selected pack key; board size for numeric packs, else a name
+  manifest: null,    // packs.json
+  packIndex: null,   // Map: pack key → pack
+  levelHome: null,   // Map: 關卡 id → { pack, ordinal }
+  pack: null,        // 選到的關卡包 key，例如 "easy-03"
   n: null,
-  levelIdx: null,
+  levelIdx: null,    // 在這一包裡的第幾關（1 起算）
+  levelId: null,     // 關卡 id，例如 level_8_00000123 —— 存檔和分享連結用這個
   regions: null,     // n x n array of region ids (0..n-1)
   solution: null,    // solution[row] = column of the true cat
   board: null,       // n x n array of EMPTY/MARK/CAT
@@ -268,8 +387,12 @@ const state = {
 };
 
 const el = {
-  sizeButtons: document.getElementById("size-buttons"),
+  packGroups: document.getElementById("pack-groups"),
   levelButtons: document.getElementById("level-buttons"),
+  viewPacks: document.getElementById("view-packs"),
+  viewLevels: document.getElementById("view-levels"),
+  packTitle: document.getElementById("pack-title"),
+  btnPackBack: document.getElementById("btn-pack-back"),
   screenSelect: document.getElementById("screen-select"),
   screenGame: document.getElementById("screen-game"),
   appHeader: document.querySelector(".app-header"),
@@ -284,6 +407,9 @@ const el = {
   btnRedo: document.getElementById("btn-redo"),
   winModal: document.getElementById("win-modal"),
   winTime: document.getElementById("win-time"),
+  ratingCells: document.getElementById("rating-cells"),
+  analysis: document.getElementById("analysis"),
+  analysisBody: document.getElementById("analysis-body"),
   btnNextLevel: document.getElementById("btn-next-level"),
   btnReplay: document.getElementById("btn-replay"),
   btnModalBack: document.getElementById("btn-modal-back"),
@@ -555,6 +681,7 @@ async function init() {
   updateToggleUI();
   renderPaletteEditor();
   updateUndoRedoButtons();
+  buildRatingCells();
   try { history.replaceState({ screen: "select" }, ""); } catch { }
 
   el.btnBack.addEventListener("click", () => history.back());
@@ -607,11 +734,20 @@ async function init() {
     if (importProgress(text)) hideImportPanel();
   });
 
+  el.btnPackBack?.addEventListener("click", () => history.back());
+
+  // 三層：關卡包列表 → 關卡列表 → 遊戲。一律照 history.state 決定要顯示哪一層，
+  // 所以瀏覽器上一頁／手機返回手勢都會退回上一層而不是直接離開。
   window.addEventListener("popstate", () => {
-    if (!el.screenGame.classList.contains("hidden")) {
-      el.winModal.classList.add("hidden");
-      showSelectScreen();
-    }
+    el.winModal.classList.add("hidden");
+    const screen = history.state?.screen;
+    if (screen === "game") return;
+    el.screenGame.classList.add("hidden");
+    el.screenSelect.classList.remove("hidden");
+    el.appHeader?.classList.remove("hidden");
+    if (screen === "levels" && state.packIndex?.has(history.state.pack))
+      showLevelList(history.state.pack, false);
+    else showPackList();
   });
 
   el.btnToggleSound?.addEventListener("click", () => {
@@ -644,11 +780,12 @@ async function init() {
   el.btnCopyLink?.addEventListener("click", () => copyRelayLink());
   el.btnToggleHypo?.addEventListener("click", toggleHypo);
 
-  // Board shortcuts: "c" copies the relay link to the current board, Space
+  // Board shortcuts: "c" copies the relay link to the current board, "d" toggles
+  // the difficulty analysis (a hidden debug switch, see renderAnalysis), Space
   // toggles 假設 mode. Modifier combos are left alone so Ctrl/Cmd+C still copies.
   document.addEventListener("keydown", (e) => {
     const key = e.key.toLowerCase();
-    if (key !== "c" && key !== " ") return;
+    if (key !== "c" && key !== "d" && key !== " ") return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (el.screenGame.classList.contains("hidden")) return;
     // An open dialog owns the keyboard: Space would otherwise toggle 假設 behind
@@ -659,6 +796,7 @@ async function init() {
       && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
     e.preventDefault();  // also stops Space scrolling / re-clicking a focused button
     if (key === "c") copyRelayLink();
+    else if (key === "d") toggleAnalysis();
     else toggleHypo();
   });
 
@@ -667,63 +805,150 @@ async function init() {
   el.board.addEventListener("pointerup", onPointerUp);
   el.board.addEventListener("pointercancel", onPointerUp);
 
-  const res = await fetch("levels_index.json");
-  state.packs = await res.json();
-  renderPackButtons();
+  const res = await fetch("packs.json");
+  state.manifest = await res.json();
+  indexManifest();
+  await migrateLegacyStars();
+  renderPackList();
   await applyRelayFromUrl();
 }
 
-function renderPackButtons() {
-  el.sizeButtons.innerHTML = "";
-  Object.keys(state.packs).sort(comparePacks).forEach((pack) => {
-    const btn = document.createElement("button");
-    btn.textContent = packLabel(pack);
-    btn.dataset.pack = pack;
-    if (PACK_HINTS[pack]) btn.title = PACK_HINTS[pack];
-    btn.addEventListener("click", () => selectPack(pack));
-    el.sizeButtons.appendChild(btn);
-  });
-}
-
-function selectPack(pack) {
-  state.pack = pack;
-  [...el.sizeButtons.children].forEach((b) => {
-    b.classList.toggle("selected", b.dataset.pack === pack);
-  });
-
-  const count = state.packs[pack];
-  const stars = getStars();
-  el.levelButtons.innerHTML = "";
-  for (let i = 1; i <= count; i++) {
-    const btn = document.createElement("button");
-    btn.textContent = String(i);
-    const s = stars[`${pack}:${i}`] || 0;
-    if (s > 0) { btn.classList.add("done"); btn.dataset.stars = String(s); }
-    btn.addEventListener("click", () => startLevel(pack, i));
-    el.levelButtons.appendChild(btn);
+// 從 packs.json 建兩張查表：包 key → 包，關卡 id → 它在哪一包的第幾關。
+// 後者讓 relay 連結只要認得關卡 id 就能落到正確的包裡（「下一關」才有得接）。
+function indexManifest() {
+  state.packIndex = new Map();
+  state.levelHome = new Map();
+  for (const group of state.manifest.groups) {
+    for (const pack of group.packs) {
+      pack.group = group;
+      state.packIndex.set(pack.key, pack);
+      pack.levels.forEach((id, i) => {
+        if (!state.levelHome.has(id)) state.levelHome.set(id, { pack, ordinal: i + 1 });
+      });
+    }
   }
 }
 
+// 舊存檔裡 "hard:<idx>" 的星數：hard 這個包已經拆散回各尺寸目錄，拿搬家時留下
+// 的對應表換成新 key。只有真的存在舊 key 時才去抓那個檔案。
+async function migrateLegacyStars() {
+  const data = getStars();
+  if (!Object.keys(data).some((k) => k.startsWith("hard:"))) return;
+  try {
+    const res = await fetch("legacy_ids.json");
+    const map = (await res.json()).hard || {};
+    let moved = 0;
+    for (const [old, id] of Object.entries(map)) {
+      if (!(old in data)) continue;
+      const key = starKey(id);
+      if ((data[key] || 0) < data[old]) data[key] = data[old];
+      delete data[old];
+      moved++;
+    }
+    if (moved) saveStarsMap(data);
+  } catch { }
+}
+
+function renderPackList() {
+  el.packGroups.innerHTML = "";
+  const stars = getStars();
+  for (const group of state.manifest.groups) {
+    const section = document.createElement("div");
+    section.className = "pack-group";
+    const h = document.createElement("h3");
+    h.textContent = group.label;
+    const range = group.scored === false ? "純邏輯解不開，必須猜測"
+      : group.max ? `難度 ${group.min}-${group.max}` : `難度 ${group.min} 以上`;
+    h.title = `${range}，共 ${group.count} 關`;
+    section.appendChild(h);
+    const grid = document.createElement("div");
+    grid.className = "button-grid";
+    for (const pack of group.packs) {
+      // 分母是「這包全部三星」的星數，所以滿額才會變綠 —— 和關卡按鈕同一套配色。
+      let earned = 0, cleared = 0;
+      for (const id of pack.levels) {
+        const s = stars[starKey(id)] || 0;
+        earned += s;
+        if (s > 0) cleared++;
+      }
+      const total = pack.count * HEARTS_MAX;
+      const btn = document.createElement("button");
+      const name = document.createElement("span");
+      name.textContent = pack.label;
+      const score = document.createElement("span");
+      score.className = "pack-score";
+      score.textContent = `${earned}/${total}`;
+      btn.append(name, score);
+      btn.dataset.pack = pack.key;
+      if (earned >= total) btn.classList.add("full");
+      else if (earned > 0) btn.classList.add("partial");
+      btn.title = `${cleared}/${pack.count} 關已過，${earned}/${total} 星`;
+      btn.addEventListener("click", () => showLevelList(pack.key));
+      grid.appendChild(btn);
+    }
+    section.appendChild(grid);
+    el.packGroups.appendChild(section);
+  }
+}
+
+function showPackList() {
+  el.viewLevels.classList.add("hidden");
+  el.viewPacks.classList.remove("hidden");
+  renderPackList();
+}
+
+function showLevelList(packKey, push = true) {
+  const pack = state.packIndex.get(packKey);
+  if (!pack) return showPackList();
+  state.pack = packKey;
+  el.packTitle.textContent = pack.label;
+  el.viewPacks.classList.add("hidden");
+  el.viewLevels.classList.remove("hidden");
+
+  const stars = getStars();
+  el.levelButtons.innerHTML = "";
+  pack.levels.forEach((id, i) => {
+    const btn = document.createElement("button");
+    btn.textContent = String(i + 1);
+    const s = stars[starKey(id)] || 0;
+    if (s > 0) { btn.classList.add("done"); btn.dataset.stars = String(s); }
+    btn.addEventListener("click", () => startLevel(packKey, i + 1));
+    el.levelButtons.appendChild(btn);
+  });
+
+  if (push && history.state?.screen !== "levels")
+    history.pushState({ screen: "levels", pack: packKey }, "");
+  else history.replaceState({ screen: "levels", pack: packKey }, "");
+}
+
 function refreshDoneMarks() {
-  if (!state.pack) return;
+  if (!state.packIndex) return;
+  if (el.viewLevels.classList.contains("hidden")) return renderPackList();
+  const pack = state.packIndex.get(state.pack);
+  if (!pack) return;
   const stars = getStars();
   [...el.levelButtons.children].forEach((btn, i) => {
-    const s = stars[`${state.pack}:${i + 1}`] || 0;
+    const s = stars[starKey(pack.levels[i])] || 0;
     btn.classList.toggle("done", s > 0);
     if (s > 0) btn.dataset.stars = String(s);
     else delete btn.dataset.stars;
   });
 }
 
-async function startLevel(pack, idx) {
-  const path = `levels/${pack}/level_${pack}_${String(idx).padStart(8, "0")}.txt`;
+// ordinal = 在這一包裡的第幾關（1 起算），不是關卡 id。
+async function startLevel(pack, ordinal) {
+  const entry = state.packIndex.get(pack);
+  const id = entry?.levels[ordinal - 1];
+  const path = id && levelPath(id);
+  if (!path) { showSelectScreen(); showToast("找不到關卡"); return; }
   const res = await fetch(path);
   const text = await res.text();
-  const { n, regions, solution } = parseLevel(text);
+  const { n, regions, solution, analysis } = parseLevel(text);
 
   state.pack = pack;
   state.n = n;
-  state.levelIdx = idx;
+  state.levelIdx = ordinal;
+  state.levelId = id;
   state.regions = regions;
   state.solution = solution;
   state.board = Array.from({ length: n }, () => Array(n).fill(EMPTY));
@@ -737,10 +962,9 @@ async function startLevel(pack, idx) {
   saveSettings();
   updateToggleUI();
 
-  el.gameTitle.textContent = PACK_LABELS[pack]
-    ? `${PACK_LABELS[pack]} — 第 ${idx} 關 (${n} x ${n})`
-    : `${n} x ${n} — 第 ${idx} 關`;
+  el.gameTitle.textContent = `${packLabel(pack)} — 第 ${ordinal} 關 (${n} x ${n})`;
   el.statusBanner.classList.add("hidden");
+  renderAnalysis(analysis);
   showGameScreen();
   renderBoard();
   renderHearts();
@@ -749,9 +973,20 @@ async function startLevel(pack, idx) {
 }
 
 function parseLevel(text) {
-  const allLines = text.split("\n");
+  // \r? 是必要的：關卡檔在 Windows 的工作目錄裡是 CRLF，留著 \r 會讓每一列
+  // 多一個垃圾字元（盤面只讀前 n 格所以看不出來），也會讓難度分析多出空行。
+  const allLines = text.split(/\r?\n/);
   const solutionLine = allLines.find((l) => l.startsWith("# solution:"));
   const solution = solutionLine.replace("# solution:", "").trim().split(/\s+/).map(Number);
+
+  // 難度分析：`# difficulty:` 開始的那一整塊註解，原樣拿來顯示（和終端機
+  // difficulty.py --steps 是同一份格式）。只有 annotate_difficulty.py 跑過的
+  // 關卡才有，沒有就是空字串。
+  const at = allLines.findIndex((l) => l.startsWith("# difficulty:"));
+  const analysis = at < 0 ? "" : allLines.slice(at)
+    .filter((l) => l.startsWith("#"))
+    .map((l) => l.replace(/^#\s?/, ""))
+    .join("\n");
 
   const lines = allLines.filter((l) => !l.startsWith("#") && l.trim() !== "");
   const n = parseInt(lines[0], 10);
@@ -759,7 +994,25 @@ function parseLevel(text) {
   for (let r = 0; r < n; r++) {
     regions.push(lines[1 + r].split("").map((ch) => ch.charCodeAt(0) - 65));
   }
-  return { n, regions, solution };
+  return { n, regions, solution, analysis };
+}
+
+// 難度分析區塊（debug 用）：一般玩家不需要看到，所以沒有任何按鈕或下拉入口，
+// 預設完全隱藏 —— 遊戲畫面按 "d" 才叫得出來，開關記在 settings.showAnalysis，
+// 這樣 debug 的時候不用每一關都按一次。關卡檔沒有分析註解就按了也不會出現。
+let analysisText = "";
+
+function renderAnalysis(text) {
+  if (!el.analysis) return;
+  analysisText = text || "";
+  el.analysisBody.textContent = analysisText;
+  el.analysis.classList.toggle("hidden", !(analysisText && settings.showAnalysis));
+}
+
+function toggleAnalysis() {
+  settings.showAnalysis = !settings.showAnalysis;
+  saveSettings();
+  renderAnalysis(analysisText);
 }
 
 function showGameScreen() {
@@ -883,7 +1136,7 @@ async function copyBoardAscii() {
 // ── Relay links: share mid-solve progress as a URL ──────────────────────────
 // The `r` parameter is three concatenated fields:
 //
-//   PP       pack code, 2 digits, from PACK_CODES
+//   PP       folder code, 2 digits, from DIR_CODES
 //   IIII     level index, 4 digits
 //   payload  base64url of one bitstream: n*n mask bits (1 = crossed out,
 //            row-major), then n nibbles, one per row, holding that row's cat
@@ -898,13 +1151,18 @@ async function copyBoardAscii() {
 // WRONG folds into MARK: a relayed board hands over the deduction ("no cat
 // here"), not the sender's penalty, and the recipient starts on full hearts.
 // HYPO is scratch and encodes as EMPTY, matching how startLevel() drops it.
-const PACK_CODES = {
-  "6": 1, "7": 2, "8": 3, "9": 4, "10": 5, "11": 6, "12": 7, hard: 8, bad: 9,
+// 連結認的是關卡放在哪個資料夾（盤面大小，或 bad）＋ 資料夾內的編號，和關卡包
+// 無關 —— 所以難度重新分包不會讓任何連結失效。舊版這裡是「關卡包 → 代號」，但
+// 數字包和 bad 的代號和資料夾一模一樣，所以那些舊連結照樣打得開。
+// 8 / 10 / 11 是退役代號（hard / 實驗包），只保留給舊連結認；不要重複使用。
+const DIR_CODES = {
+  "6": 1, "7": 2, "8": 3, "9": 4, "10": 5, "11": 6, "12": 7, bad: 9,
 };
+const LEGACY_HARD_CODE = 8;
 // Frozen and append-only: these codes are baked into every link ever shared,
-// so a new pack takes the next unused number. Renumbering breaks old links.
-const PACK_BY_CODE = Object.fromEntries(
-  Object.entries(PACK_CODES).map(([pack, code]) => [code, pack]));
+// so a new folder takes the next unused number. Renumbering breaks old links.
+const DIR_BY_CODE = Object.fromEntries(
+  Object.entries(DIR_CODES).map(([dir, code]) => [code, dir]));
 
 function encodeRelayPayload(board, n) {
   const bits = [];
@@ -960,14 +1218,15 @@ function base64UrlToBytes(str) {
 }
 
 function buildRelayUrl() {
-  if (!state.board || !state.n || !state.pack || !state.levelIdx) return null;
-  const code = PACK_CODES[state.pack];
-  if (!code || state.levelIdx > 9999) return null;
+  if (!state.board || !state.n || !state.levelId) return null;
+  const ref = levelRef(state.levelId);
+  const code = ref && DIR_CODES[ref.dir];
+  if (!code || ref.idx > 9999) return null;
   const url = new URL(location.href);
   url.search = "";
   url.hash = "";
   url.searchParams.set("r", String(code).padStart(2, "0")
-    + String(state.levelIdx).padStart(4, "0")
+    + String(ref.idx).padStart(4, "0")
     + encodeRelayPayload(state.board, state.n));
   return url.toString();
 }
@@ -979,6 +1238,19 @@ async function copyRelayLink() {
   showToast(ok ? "已複製連結" : "複製失敗");
 }
 
+// 連結裡的代號 + 編號 → 關卡 id。代號 8 是退役的 hard 包，只有舊連結會用到，
+// 靠搬家時留下的對應表換算。
+async function relayLevelId(code, idx) {
+  if (code === LEGACY_HARD_CODE) {
+    try {
+      const res = await fetch("legacy_ids.json");
+      return (await res.json()).hard?.[`hard:${idx}`] || null;
+    } catch { return null; }
+  }
+  const dir = DIR_BY_CODE[code];
+  return dir ? `level_${dir}_${String(idx).padStart(8, "0")}` : null;
+}
+
 // Runs once at startup. Consumes ?r= if present, loading that level and
 // overlaying the decoded board on top of it. The query string is stripped
 // immediately so a later "重來" or level switch doesn't re-trigger it.
@@ -986,12 +1258,15 @@ async function applyRelayFromUrl() {
   const r = new URLSearchParams(location.search).get("r");
   if (!r) return;
   history.replaceState(history.state, "", location.pathname);
-  const pack = PACK_BY_CODE[parseInt(r.slice(0, 2), 10)];
+  const code = parseInt(r.slice(0, 2), 10);
   const idx = parseInt(r.slice(2, 6), 10);
   const payload = r.slice(6);
   try {
-    if (!pack || !Number.isInteger(idx) || idx < 1 || !payload) throw new Error("bad link");
-    await startLevel(pack, idx);
+    if (!Number.isInteger(idx) || idx < 1 || !payload) throw new Error("bad link");
+    const id = await relayLevelId(code, idx);
+    const home = id && state.levelHome.get(id);
+    if (!home) throw new Error("bad link");
+    await startLevel(home.pack.key, home.ordinal);
     if (state.regions?.length !== state.n) throw new Error("bad level");
     const board = decodeRelayPayload(payload, state.n);
     if (!board) throw new Error("bad payload");
@@ -1021,9 +1296,11 @@ function checkWin() {
     state.gameOver = true;
     stopTimer();
     updateUndoRedoButtons();
-    saveStars(state.pack, state.levelIdx, state.hearts);
+    saveStars(state.levelId, state.hearts);
+    recordClear(state.levelId, state.timerFrozenMs);
+    renderRating(state.levelId);
     playWin(); vibrate(300);
-    const hasNext = state.levelIdx < state.packs[state.pack];
+    const hasNext = state.levelIdx < (state.packIndex.get(state.pack)?.count || 0);
     el.btnNextLevel.style.display = hasNext ? "" : "none";
     if (el.winTime) el.winTime.textContent = state.timerFrozenMs !== null ? `用時 ${formatElapsed(state.timerFrozenMs)}` : "";
     setTimeout(() => el.winModal.classList.remove("hidden"), 300);

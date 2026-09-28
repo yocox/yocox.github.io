@@ -1,8 +1,22 @@
 6
-BBBAAD
-EBBCDD
-EBCCDD
-EEFDDD
-EFFFFF
-FFFFFF
+AAACCB
+DAAFBB
+DAFFBB
+DDEBBB
+DEEEEE
+EEEEEE
 # solution: 4 1 3 5 0 2
+# difficulty: accu=56.32 (=Σd)   max=11.71 (=max d)   steps=11   峰值手法=stencil
+# weights: alpha=1.5  beta=1.0  gamma=0.2  delta=0.1  vis_cutoff=2.0
+# d = cost x f(可見度) x g(開放度) x 移動 x 換手法
+#   1 |     9.0 =   3 x1.50(vis 3.0) x2.00(open 1.00) x1.00 x1.00 | confine-color  | row 6 只剩 亮藍 → 排除其他 row 的 亮藍：(4,3)、(5,2)、(5,3)、(5,4)、(5,5)、(5,6)
+#   2 |     4.2 =   1 x1.90(vis 1.7) x1.83(open 0.83) x1.09 x1.10 | single-row     | 貓貓在 (5,1) — row 5 只剩一格
+#   3 |     7.9 =   3 x1.30(vis 5.0) x1.61(open 0.61) x1.15 x1.10 | confine-color  | row 4 只剩 暗橘 → 排除其他 row 的 暗橘：(1,6)、(2,5)、(2,6)、(3,5)、(3,6)
+#   4 |     6.5 =   3 x1.33(vis 4.5) x1.47(open 0.47) x1.10 x1.00 | confine-color  | col 2 只剩 亮紅 → 排除其他 col 的 亮紅：(1,3)、(2,3)
+#   5 |     7.1 =   3 x1.60(vis 2.5) x1.42(open 0.42) x1.04 x1.00 | confine-line   | 亮黃 只出現在 row 1 → 排除 row 1 的其他顏色：(1,2)
+#   6 |    11.7 =   6 x1.25(vis 6.0) x1.39(open 0.39) x1.02 x1.10 | stencil        | 定石: 不管 row 1 的貓貓在哪裡（(1,4)、(1,5)）都排除 (2,4)
+#   7 |     2.9 =   1 x1.82(vis 1.8) x1.36(open 0.36) x1.08 x1.10 | single-row     | 貓貓在 (2,2) — row 2 只剩一格
+#   8 |     2.0 =   1 x1.45(vis 3.3) x1.28(open 0.28) x1.07 x1.00 | single-color   | 貓貓在 (3,4) — 暗紫 只剩一格
+#   9 |     1.5 =   1 x1.26(vis 5.7) x1.14(open 0.14) x1.07 x1.00 | single-color   | 貓貓在 (4,6) — 暗橘 只剩一格
+#  10 |     1.7 =   1 x1.45(vis 3.3) x1.08(open 0.08) x1.10 x1.00 | single-color   | 貓貓在 (1,5) — 亮黃 只剩一格
+#  11 |     1.8 =   1 x1.50(vis 3.0) x1.03(open 0.03) x1.17 x1.00 | single-color   | 貓貓在 (6,3) — 亮藍 只剩一格

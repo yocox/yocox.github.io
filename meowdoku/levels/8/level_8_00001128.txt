@@ -1,0 +1,30 @@
+8
+CFFFFFDD
+CCCFFDDD
+FCFFFAHH
+FFFFAAHH
+FFFBAHHH
+FFFBBBHH
+FFBBBHHE
+FGGGGGHE
+# solution: 0 5 2 4 6 3 7 1
+# difficulty: accu=115.88 (=Σd)   max=19.96 (=max d)   steps=17   峰值手法=stencil-line
+# weights: alpha=1.5  beta=1.0  gamma=0.2  delta=0.1  vis_cutoff=2.0
+# d = cost x f(可見度) x g(開放度) x 移動 x 換手法
+#   1 |     8.2 =   3 x1.37(vis 4.0) x2.00(open 1.00) x1.00 x1.00 | confine-line   | 亮藍 只出現在 col 8 → 排除 col 8 的其他顏色：(1,8)、(2,8)、(3,8)、(4,8)、(5,8)、(6,8)
+#   2 |     8.5 =   3 x1.37(vis 4.0) x1.91(open 0.91) x1.09 x1.00 | confine-line   | 暗紅 只出現在 row 8 → 排除 row 8 的其他顏色：(8,1)、(8,7)、(8,8)
+#   3 |     3.4 =   1 x1.53(vis 2.8) x1.86(open 0.86) x1.09 x1.10 | single-color   | 貓貓在 (7,8) — 亮藍 只剩一格
+#   4 |    15.5 =   6 x1.27(vis 5.5) x1.72(open 0.72) x1.07 x1.10 | stencil-line   | 定石: 不管 亮紅 的貓貓在哪裡（(3,6)、(4,5)、(4,6)、(5,5)）都排除 (3,5)、(5,6)
+#   5 |     8.7 =   3 x1.50(vis 3.0) x1.69(open 0.69) x1.04 x1.10 | confine-line   | 亮橘 只出現在 col 7 → 排除 col 7 的其他顏色：(1,7)、(2,7)
+#   6 |     3.1 =   1 x1.64(vis 2.3) x1.66(open 0.66) x1.02 x1.10 | single-color   | 貓貓在 (2,6) — 暗青 只剩一格
+#   7 |     8.3 =   3 x1.57(vis 2.6) x1.45(open 0.45) x1.09 x1.10 | confine-line   | 亮紅 只出現在 col 5 → 排除 col 5 的其他顏色：(6,5)、(8,5)
+#   8 |     6.5 =   3 x1.48(vis 3.1) x1.42(open 0.42) x1.03 x1.00 | confine-line   | 暗橘 只出現在 col 4 → 排除 col 4 的其他顏色：(1,4)、(3,4)、(4,4)、(8,4)
+#   9 |    11.4 =   6 x1.21(vis 7.2) x1.36(open 0.36) x1.05 x1.10 | stencil        | 定石: 不管 row 3 的貓貓在哪裡（(3,1)、(3,2)、(3,3)）都排除 (4,2)
+#  10 |    10.5 =   6 x1.24(vis 6.2) x1.34(open 0.34) x1.05 x1.00 | stencil        | 定石: 不管 col 4 的貓貓在哪裡（(5,4)、(6,4)）都排除 (5,3)、(5,5)、(6,3)
+#  11 |     2.4 =   1 x1.59(vis 2.5) x1.30(open 0.30) x1.03 x1.10 | single-color   | 貓貓在 (4,5) — 亮紅 只剩一格
+#  12 |     1.7 =   1 x1.31(vis 4.9) x1.22(open 0.22) x1.05 x1.00 | single-color   | 貓貓在 (6,4) — 暗橘 只剩一格
+#  13 |     2.0 =   1 x1.60(vis 2.5) x1.17(open 0.17) x1.07 x1.00 | single-color   | 貓貓在 (5,7) — 亮橘 只剩一格
+#  14 |    20.0 =   6 x2.36(vis 1.1) x1.12(open 0.12) x1.14 x1.10 | stencil-line   | 定石: 不管 亮黃 的貓貓在哪裡（(1,1)、(3,2)）都排除 (1,2)、(3,1)
+#  15 |     2.5 =   1 x2.00(vis 1.5) x1.09(open 0.09) x1.02 x1.10 | single-col     | 貓貓在 (1,1) — col 1 只剩一格
+#  16 |     1.6 =   1 x1.45(vis 3.3) x1.05(open 0.05) x1.05 x1.00 | single-color   | 貓貓在 (3,3) — 暗紫 只剩一格
+#  17 |     1.7 =   1 x1.50(vis 3.0) x1.02(open 0.02) x1.12 x1.00 | single-color   | 貓貓在 (8,2) — 暗紅 只剩一格

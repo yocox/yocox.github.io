@@ -17,11 +17,19 @@
 
   <main id="app">
     <section id="screen-select" class="screen">
-      <h2>選擇模式</h2>
-      <div id="size-buttons" class="button-grid"></div>
+      <!-- 兩層：先選關卡包，選了才顯示那一包的關卡 -->
+      <div id="view-packs" class="view">
+        <h2>選擇難度</h2>
+        <div id="pack-groups"></div>
+      </div>
 
-      <h2>選擇關卡</h2>
-      <div id="level-buttons" class="button-grid"></div>
+      <div id="view-levels" class="view hidden">
+        <div class="pack-header">
+          <button id="btn-pack-back" class="icon-btn" aria-label="返回" title="返回">←</button>
+          <h2 id="pack-title"></h2>
+        </div>
+        <div id="level-buttons" class="button-grid"></div>
+      </div>
     </section>
 
     <section id="screen-game" class="screen hidden">
@@ -52,11 +60,22 @@
       </div>
       <div id="status-banner" class="status-banner hidden"></div>
 
+      <!-- 難度分析（debug 用，內容是關卡檔裡的 `# difficulty:` 註解）：一般玩家
+           不需要看到，所以沒有任何入口，預設完全隱藏，遊戲畫面按 "d" 才叫得出來。
+           第一行自己就寫著 difficulty: ...，所以不用再加標題。 -->
+      <section id="analysis" class="analysis hidden">
+        <pre id="analysis-body"></pre>
+      </section>
+
       <div id="win-modal" class="modal-overlay hidden">
         <div class="modal-box">
           <div class="modal-emoji">🎉</div>
           <div class="modal-title">完成！</div>
           <div id="win-time" class="modal-subtitle"></div>
+          <div class="rating">
+            <div class="rating-label">這關有多難？<span>1 最簡單 · 10 最難</span></div>
+            <div id="rating-cells" class="rating-cells"></div>
+          </div>
           <div class="modal-buttons">
             <button id="btn-modal-back" class="secondary">選關</button>
             <button id="btn-replay" class="secondary">重玩</button>

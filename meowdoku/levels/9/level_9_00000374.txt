@@ -1,11 +1,28 @@
 9
-AAAAAABDD
-AACAAABBD
-AACCAADDD
-AACEEDDDD
-ACCEDDDDD
-AFFEEEGGD
-AAFEEGGGG
-FFFFIGHGG
-FFFIIIIII
+FFFFFFGBB
+FFCFFFGGB
+FFCCFFBBB
+FFCAABBBB
+FCCABBBBB
+FEEAAAIIB
+FFEAAIIII
+EEEEHIDII
+EEEHHHHHH
 # solution: 0 7 2 5 3 1 8 6 4
+# difficulty: accu=54.96 (=Σd)   max=9.28 (=max d)   steps=14   峰值手法=stencil
+# weights: alpha=1.5  beta=1.0  gamma=0.2  delta=0.1  vis_cutoff=2.0
+# d = cost x f(可見度) x g(開放度) x 移動 x 換手法
+#   1 |     3.6 =   1 x1.82(vis 1.8) x2.00(open 1.00) x1.00 x1.00 | single-color   | 貓貓在 (8,7) — 暗青 只剩一格
+#   2 |     3.2 =   1 x1.64(vis 2.3) x1.74(open 0.74) x1.13 x1.00 | single-color   | 貓貓在 (2,8) — 暗紅 只剩一格
+#   3 |     2.8 =   1 x1.60(vis 2.5) x1.56(open 0.56) x1.11 x1.00 | single-color   | 貓貓在 (7,9) — 暗黃 只剩一格
+#   4 |     7.7 =   3 x1.43(vis 3.5) x1.43(open 0.43) x1.14 x1.10 | confine-color  | row 1 只剩 暗紫 → 排除其他 row 的 暗紫：(3,1)、(3,2)、(3,5)、(3,6)、(4,1)、(4,2)、(5,1)、(6,1)
+#   5 |     5.7 =   3 x1.38(vis 4.0) x1.33(open 0.33) x1.03 x1.00 | confine-color  | row 3 只剩 亮黃 → 排除其他 row 的 亮黃：(4,3)、(5,2)、(5,3)
+#   6 |     5.8 =   3 x1.33(vis 4.5) x1.30(open 0.30) x1.11 x1.00 | confine-line   | 亮橘 只出現在 row 9 → 排除 row 9 的其他顏色：(9,1)、(9,2)、(9,3)
+#   7 |     2.6 =   1 x1.60(vis 2.5) x1.26(open 0.26) x1.18 x1.10 | single-col     | 貓貓在 (1,1) — col 1 只剩一格
+#   8 |     2.1 =   1 x1.56(vis 2.7) x1.19(open 0.19) x1.11 x1.00 | single-col     | 貓貓在 (6,2) — col 2 只剩一格
+#   9 |     1.9 =   1 x1.60(vis 2.5) x1.12(open 0.12) x1.07 x1.00 | single-col     | 貓貓在 (3,3) — col 3 只剩一格
+#  10 |     5.4 =   3 x1.43(vis 3.5) x1.09(open 0.09) x1.06 x1.10 | confine-color  | col 6 只剩 暗橘 → 排除其他 col 的 暗橘：(5,5)
+#  11 |     9.3 =   6 x1.30(vis 5.0) x1.07(open 0.07) x1.01 x1.10 | stencil        | 定石: 不管 row 4 的貓貓在哪裡（(4,5)、(4,6)）都排除 (5,6)
+#  12 |     1.7 =   1 x1.45(vis 3.3) x1.06(open 0.06) x1.01 x1.10 | single-color   | 貓貓在 (4,6) — 暗橘 只剩一格
+#  13 |     1.6 =   1 x1.45(vis 3.3) x1.04(open 0.04) x1.04 x1.00 | single-color   | 貓貓在 (5,4) — 亮紅 只剩一格
+#  14 |     1.7 =   1 x1.50(vis 3.0) x1.01(open 0.01) x1.09 x1.00 | single-color   | 貓貓在 (9,5) — 亮橘 只剩一格

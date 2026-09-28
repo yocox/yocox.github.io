@@ -1,0 +1,28 @@
+9
+BBBCCCCCC
+BBBBBCCCG
+BBABGCGGG
+ABABGGGGG
+AAABBBGGH
+AAEBBHHHH
+DEEIIHHHH
+DEDIFFFHH
+DDDIFFHHH
+# solution: 5 3 7 0 8 2 4 6 1
+# difficulty: accu=175.74 (=Σd)   max=54.91 (=max d)   steps=14   峰值手法=grp-row-color·k3
+# weights: alpha=1.5  beta=1.0  gamma=0.2  delta=0.1  vis_cutoff=2.0
+# d = cost x f(可見度) x g(開放度) x 移動 x 換手法
+#   1 |    18.0 =   6 x1.50(vis 3.0) x2.00(open 1.00) x1.00 x1.00 | stencil        | 定石: 不管 暗青 的貓貓在哪裡（(7,1)、(8,1)、(8,3)、(9,1)、(9,2)、(9,3)）都排除 (8,2)
+#   2 |    21.5 =   6 x1.75(vis 2.0) x1.99(open 0.99) x1.03 x1.00 | stencil-line   | 定石: 不管 亮藍 的貓貓在哪裡（(6,3)、(7,2)、(7,3)）都排除 (6,2)、(7,4)、(8,3)
+#   3 |    30.3 =   6 x2.50(vis 1.0) x1.95(open 0.95) x1.04 x1.00 | stencil-line   | 定石: 不管 暗黃 的貓貓在哪裡（(7,5)、(8,4)、(9,4)）都排除 (6,4)、(8,5)、(9,5)
+#   4 |    29.9 =   6 x2.50(vis 1.0) x1.91(open 0.91) x1.04 x1.00 | stencil-line   | 定石: 不管 暗紫 的貓貓在哪裡（(8,6)、(8,7)、(9,6)）都排除 (7,6)、(9,7)
+#   5 |    54.9 =  18 x1.43(vis 3.5) x1.89(open 0.89) x1.03 x1.10 | grp-row-color  | 3-group: {暗青,暗紫,暗黃} 只出現在 row {7,8,9} → 排除這些 row 的其他顏色：(7,2)、(7,3)、(7,7)、(7,8)、(7,9)、(8,8)、(8,9)、(9,8)、(9,9)
+#   6 |     3.9 =   1 x1.90(vis 1.7) x1.78(open 0.78) x1.05 x1.10 | single-color   | 貓貓在 (6,3) — 亮藍 只剩一格
+#   7 |     3.1 =   1 x1.69(vis 2.2) x1.59(open 0.59) x1.13 x1.00 | single-color   | 貓貓在 (5,9) — 亮橘 只剩一格
+#   8 |     3.0 =   1 x1.75(vis 2.0) x1.46(open 0.46) x1.18 x1.00 | single-color   | 貓貓在 (4,1) — 亮紅 只剩一格
+#   9 |     2.1 =   1 x1.45(vis 3.3) x1.30(open 0.30) x1.11 x1.00 | single-color   | 貓貓在 (9,2) — 暗青 只剩一格
+#  10 |     2.0 =   1 x1.53(vis 2.8) x1.23(open 0.23) x1.07 x1.00 | single-row     | 貓貓在 (7,5) — row 7 只剩一格
+#  11 |     1.6 =   1 x1.35(vis 4.3) x1.16(open 0.16) x1.04 x1.00 | single-color   | 貓貓在 (8,7) — 暗紫 只剩一格
+#  12 |     1.9 =   1 x1.53(vis 2.8) x1.11(open 0.11) x1.11 x1.00 | single-color   | 貓貓在 (3,8) — 暗紅 只剩一格
+#  13 |     1.9 =   1 x1.64(vis 2.3) x1.05(open 0.05) x1.09 x1.00 | single-color   | 貓貓在 (2,4) — 暗橘 只剩一格
+#  14 |     1.6 =   1 x1.50(vis 3.0) x1.01(open 0.01) x1.04 x1.00 | single-color   | 貓貓在 (1,6) — 亮黃 只剩一格

@@ -1,0 +1,24 @@
+6
+BCCCFF
+BBCEEF
+BBEEEE
+BBDEEA
+BDDAAA
+BBDDDD
+# solution: 1 5 3 0 4 2
+# difficulty: accu=2255.54 (=Σd)   max=2099.0 (=max d)   steps=13   峰值手法=inter-mixed·r4
+# weights: alpha=1.5  beta=1.0  gamma=0.2  delta=0.1  vis_cutoff=2.0
+# d = cost x f(可見度) x g(開放度) x 移動 x 換手法
+#   1 |    10.5 =   3 x1.75(vis 2.0) x2.00(open 1.00) x1.00 x1.00 | confine-color  | col 1 只剩 暗橘 → 排除其他 col 的 暗橘：(2,2)、(3,2)、(4,2)、(6,2)
+#   2 |    22.4 =   6 x1.60(vis 2.5) x1.89(open 0.89) x1.13 x1.10 | stencil        | 定石: 不管 亮紅 的貓貓在哪裡（(4,6)、(5,4)、(5,5)、(5,6)）都排除 (4,5)
+#   3 |    24.5 =   6 x1.99(vis 1.5) x1.86(open 0.86) x1.10 x1.00 | stencil        | 定石: 不管 暗紫 的貓貓在哪裡（(1,5)、(1,6)、(2,6)）都排除 (2,5)
+#   4 |    63.3 =  12 x2.45(vis 1.0) x1.83(open 0.83) x1.07 x1.10 | grp-row-color  | 2-group: {亮黃,暗紫} 只出現在 row {1,2} → 排除這些 row 的其他顏色：(1,1)、(2,1)、(2,4)
+#   5 |  2099.0 = 380 x2.50(vis 1.0) x1.75(open 0.75) x1.15 x1.10 | inter-mixed    | 混色交集: 不管 row 6 的貓貓在哪裡（5 格，跨距 5）都排除 (5,2) — 其中 3 格要靠同色，最遠 4 格
+#   6 |     5.5 =   1 x2.50(vis 1.0) x1.72(open 0.72) x1.16 x1.10 | single-col     | 貓貓在 (1,2) — col 2 只剩一格
+#   7 |     2.9 =   1 x1.64(vis 2.3) x1.56(open 0.56) x1.13 x1.00 | single-color   | 貓貓在 (2,6) — 暗紫 只剩一格
+#   8 |     7.5 =   3 x1.50(vis 3.0) x1.39(open 0.39) x1.10 x1.10 | confine-line   | 亮紅 只出現在 row 5 → 排除 row 5 的其他顏色：(5,1)、(5,3)
+#   9 |    11.9 =   6 x1.30(vis 5.0) x1.33(open 0.33) x1.04 x1.10 | stencil        | 定石: 不管 row 5 的貓貓在哪裡（(5,4)、(5,5)）都排除 (4,4)、(6,4)、(6,5)
+#  10 |     2.4 =   1 x1.69(vis 2.2) x1.25(open 0.25) x1.02 x1.10 | single-col     | 貓貓在 (5,5) — col 5 只剩一格
+#  11 |     2.2 =   1 x1.75(vis 2.0) x1.19(open 0.19) x1.07 x1.00 | single-col     | 貓貓在 (3,4) — col 4 只剩一格
+#  12 |     1.7 =   1 x1.45(vis 3.3) x1.08(open 0.08) x1.10 x1.00 | single-color   | 貓貓在 (6,3) — 暗青 只剩一格
+#  13 |     1.6 =   1 x1.50(vis 3.0) x1.03(open 0.03) x1.07 x1.00 | single-color   | 貓貓在 (4,1) — 暗橘 只剩一格

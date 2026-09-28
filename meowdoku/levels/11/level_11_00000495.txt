@@ -1,13 +1,30 @@
 11
-BBBBBDDDDDA
-BBBBBBBDDCC
-EEBBDBBDDCC
-EEBBDDDDDDD
-EBBGGGGGGGD
-BBBFHGGJJGJ
-BBBBHGGGJGJ
-IHHHHHGJJGJ
-IIHHHJJJGGJ
-IHHHHJJJJJJ
-IHHKKJJJJJJ
+FFFFFKKKKKA
+FFFFFFFKKII
+GGFFKFFKKII
+GGFFKKKKKKK
+GFFJJJJJJJK
+FFFDHJJBBJB
+FFFFHJJJBJB
+EHHHHHJBBJB
+EEHHHBBBJJB
+EHHHHBBBBBB
+EHHCCBBBBBB
 # solution: 10 2 9 6 0 3 7 5 1 8 4
+# difficulty: accu=117.82 (=Σd)   max=46.38 (=max d)   steps=14   峰值手法=grp-col-color·k2
+# weights: alpha=1.5  beta=1.0  gamma=0.2  delta=0.1  vis_cutoff=2.0
+# d = cost x f(可見度) x g(開放度) x 移動 x 換手法
+#   1 |     2.8 =   1 x1.39(vis 3.8) x2.00(open 1.00) x1.00 x1.00 | single-color   | 貓貓在 (1,11) — 亮紅 只剩一格
+#   2 |     2.9 =   1 x1.39(vis 3.8) x1.82(open 0.82) x1.13 x1.00 | single-color   | 貓貓在 (6,4) — 暗青 只剩一格
+#   3 |     2.6 =   1 x1.45(vis 3.3) x1.63(open 0.63) x1.09 x1.00 | single-color   | 貓貓在 (11,5) — 亮黃 只剩一格
+#   4 |     3.3 =   1 x1.90(vis 1.7) x1.50(open 0.50) x1.15 x1.00 | single-color   | 貓貓在 (3,10) — 暗黃 只剩一格
+#   5 |    20.8 =   6 x2.00(vis 1.5) x1.36(open 0.36) x1.15 x1.10 | stencil        | 定石: 不管 暗紅 的貓貓在哪裡（(4,1)、(4,2)、(5,1)）都排除 (5,2)
+#   6 |    46.4 =  12 x2.50(vis 1.0) x1.36(open 0.36) x1.04 x1.10 | grp-col-color  | 2-group: {亮藍,暗紅} 只出現在 col {1,2} → 排除這些 col 的其他顏色：(2,1)、(2,2)、(7,1)、(7,2)、(8,2)、(10,2)
+#   7 |    26.2 =  12 x1.57(vis 2.6) x1.31(open 0.31) x1.07 x1.00 | grp-row-color  | 2-group: {暗紫,暗藍} 只出現在 row {2,4} → 排除這些 row 的其他顏色：(4,1)、(4,2)
+#   8 |     2.4 =   1 x1.56(vis 2.7) x1.29(open 0.29) x1.07 x1.10 | single-color   | 貓貓在 (5,1) — 暗紅 只剩一格
+#   9 |     2.1 =   1 x1.64(vis 2.4) x1.22(open 0.22) x1.07 x1.00 | single-color   | 貓貓在 (9,2) — 亮藍 只剩一格
+#  10 |     1.9 =   1 x1.56(vis 2.7) x1.16(open 0.16) x1.07 x1.00 | single-color   | 貓貓在 (8,6) — 亮橘 只剩一格
+#  11 |     1.8 =   1 x1.56(vis 2.7) x1.09(open 0.09) x1.04 x1.00 | single-color   | 貓貓在 (7,8) — 亮青 只剩一格
+#  12 |     1.6 =   1 x1.45(vis 3.3) x1.05(open 0.05) x1.05 x1.00 | single-color   | 貓貓在 (4,7) — 暗藍 只剩一格
+#  13 |     1.4 =   1 x1.25(vis 6.0) x1.02(open 0.02) x1.11 x1.00 | single-color   | 貓貓在 (10,9) — 暗橘 只剩一格
+#  14 |     1.7 =   1 x1.50(vis 3.0) x1.01(open 0.01) x1.15 x1.00 | single-color   | 貓貓在 (2,3) — 暗紫 只剩一格

@@ -1,10 +1,27 @@
 8
-AAAAAAAB
-AAAAAABB
-ACADAAFF
-ACCDAAAF
-ECDDAAAF
-GCDAAAAF
-GCGAHAFF
-GGGGHHHF
+FFFFFFFG
+FFFFFFGG
+FHFDFFEE
+FHHDFFFE
+CHDDFFFE
+AHDFFFFE
+AHAFBFEE
+AAAABBBE
 # solution: 4 6 1 3 0 7 2 5
+# difficulty: accu=110.08 (=Σd)   max=21.97 (=max d)   steps=14   峰值手法=grp-row-color·k2
+# weights: alpha=1.5  beta=1.0  gamma=0.2  delta=0.1  vis_cutoff=2.0
+# d = cost x f(可見度) x g(開放度) x 移動 x 換手法
+#   1 |     3.4 =   1 x1.69(vis 2.2) x2.00(open 1.00) x1.00 x1.00 | single-color   | 貓貓在 (5,1) — 亮黃 只剩一格
+#   2 |    16.5 =   6 x1.30(vis 5.0) x1.73(open 0.73) x1.11 x1.10 | stencil-line   | 定石: 不管 暗橘 的貓貓在哪裡（(7,5)、(8,5)、(8,6)、(8,7)）都排除 (7,6)、(8,4)
+#   3 |    13.9 =   6 x1.27(vis 5.6) x1.70(open 0.70) x1.07 x1.00 | stencil        | 定石: 不管 亮紅 的貓貓在哪裡（(7,3)、(8,2)、(8,3)）都排除 (7,2)
+#   4 |    13.7 =   6 x1.27(vis 5.6) x1.69(open 0.69) x1.07 x1.00 | stencil-line   | 定石: 不管 暗青 的貓貓在哪裡（(3,4)、(4,4)、(6,3)）都排除 (3,3)、(4,3)、(6,4)、(7,4)
+#   5 |     3.4 =   1 x1.81(vis 1.8) x1.62(open 0.62) x1.04 x1.10 | single-color   | 貓貓在 (3,2) — 亮橘 只剩一格
+#   6 |     8.9 =   3 x1.74(vis 2.0) x1.47(open 0.47) x1.06 x1.10 | confine-line   | 亮紅 只出現在 col 3 → 排除 col 3 的其他顏色：(1,3)、(6,3)
+#   7 |     3.0 =   1 x1.81(vis 1.8) x1.44(open 0.44) x1.04 x1.10 | single-color   | 貓貓在 (4,4) — 暗青 只剩一格
+#   8 |    14.3 =   6 x1.50(vis 3.0) x1.33(open 0.33) x1.09 x1.10 | stencil        | 定石: 不管 暗紅 的貓貓在哪裡（(1,8)、(2,7)、(2,8)）都排除 (1,7)
+#   9 |    22.0 =  12 x1.23(vis 6.7) x1.31(open 0.31) x1.03 x1.10 | grp-row-color  | 2-group: row {1,2} 只有 {暗紫,暗紅} → 排除其他 row 的這些顏色：(6,5)、(6,6)、(6,7)
+#  10 |     3.8 =   1 x2.50(vis 1.0) x1.27(open 0.27) x1.08 x1.10 | single-row     | 貓貓在 (6,8) — row 6 只剩一格
+#  11 |     2.1 =   1 x1.64(vis 2.3) x1.17(open 0.17) x1.10 x1.00 | single-color   | 貓貓在 (2,7) — 暗紅 只剩一格
+#  12 |     1.7 =   1 x1.45(vis 3.3) x1.09(open 0.09) x1.05 x1.00 | single-color   | 貓貓在 (1,5) — 暗紫 只剩一格
+#  13 |     1.8 =   1 x1.45(vis 3.3) x1.05(open 0.05) x1.18 x1.00 | single-color   | 貓貓在 (8,6) — 暗橘 只剩一格
+#  14 |     1.6 =   1 x1.50(vis 3.0) x1.02(open 0.02) x1.07 x1.00 | single-color   | 貓貓在 (7,3) — 亮紅 只剩一格

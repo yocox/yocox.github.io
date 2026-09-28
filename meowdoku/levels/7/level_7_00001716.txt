@@ -1,0 +1,26 @@
+7
+AAACFFF
+AACCCFF
+ACCDCBF
+AAADDDD
+AAGGEED
+AGGGGED
+GGEEEED
+# solution: 4 2 5 0 6 1 3
+# difficulty: accu=1002.1 (=Σd)   max=861.5 (=max d)   steps=14   峰值手法=inter-mixed·r2
+# weights: alpha=1.5  beta=1.0  gamma=0.2  delta=0.1  vis_cutoff=2.0
+# d = cost x f(可見度) x g(開放度) x 移動 x 換手法
+#   1 |     3.6 =   1 x1.82(vis 1.8) x2.00(open 1.00) x1.00 x1.00 | single-color   | 貓貓在 (3,6) — 暗橘 只剩一格
+#   2 |     9.3 =   3 x1.60(vis 2.5) x1.65(open 0.65) x1.07 x1.10 | confine-line   | 暗紫 只出現在 row 1 → 排除 row 1 的其他顏色：(1,1)、(1,2)、(1,3)、(1,4)
+#   3 |     8.5 =   3 x1.75(vis 2.0) x1.57(open 0.57) x1.03 x1.00 | confine-line   | 亮黃 只出現在 row 2 → 排除 row 2 的其他顏色：(2,1)、(2,2)
+#   4 |    22.4 =   6 x1.97(vis 1.5) x1.53(open 0.53) x1.13 x1.10 | stencil        | 定石: 不管 亮藍 的貓貓在哪裡（(5,5)、(7,3)、(7,4)、(7,5)）都排除 (6,4)
+#   5 |    50.2 =  12 x2.39(vis 1.1) x1.51(open 0.51) x1.05 x1.10 | grp-col-color  | 2-group: col {1,2} 只有 {亮紅,暗紅} → 排除其他 col 的這些顏色：(4,3)、(5,3)、(5,4)、(6,3)、(6,5)
+#   6 |    23.8 =   6 x2.47(vis 1.0) x1.41(open 0.41) x1.03 x1.10 | stencil-line   | 定石: 不管 暗紅 的貓貓在哪裡（(6,2)、(7,1)、(7,2)）都排除 (6,1)、(7,3)
+#   7 |     4.3 =   1 x2.50(vis 1.0) x1.37(open 0.37) x1.13 x1.10 | single-col     | 貓貓在 (2,3) — col 3 只剩一格
+#   8 |   861.5 = 300 x1.80(vis 1.9) x1.33(open 0.33) x1.10 x1.10 | inter-mixed    | 混色交集: 不管 col 4 的貓貓在哪裡（2 格，跨距 3）都排除 (5,5) — 其中 1 格要靠同色，最遠 2 格
+#   9 |     9.0 =   3 x1.99(vis 1.5) x1.31(open 0.31) x1.05 x1.10 | confine-line   | 亮藍 只出現在 row 7 → 排除 row 7 的其他顏色：(7,1)、(7,2)、(7,7)
+#  10 |     2.4 =   1 x1.64(vis 2.3) x1.24(open 0.24) x1.05 x1.10 | single-color   | 貓貓在 (6,2) — 暗紅 只剩一格
+#  11 |     1.8 =   1 x1.45(vis 3.3) x1.14(open 0.14) x1.06 x1.00 | single-color   | 貓貓在 (4,1) — 亮紅 只剩一格
+#  12 |     1.9 =   1 x1.45(vis 3.3) x1.10(open 0.10) x1.17 x1.00 | single-color   | 貓貓在 (5,7) — 暗青 只剩一格
+#  13 |     1.7 =   1 x1.45(vis 3.3) x1.06(open 0.06) x1.11 x1.00 | single-color   | 貓貓在 (1,5) — 暗紫 只剩一格
+#  14 |     1.8 =   1 x1.50(vis 3.0) x1.02(open 0.02) x1.17 x1.00 | single-color   | 貓貓在 (7,4) — 亮藍 只剩一格

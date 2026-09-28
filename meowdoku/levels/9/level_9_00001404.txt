@@ -1,0 +1,30 @@
+9
+IIIGGGGGF
+CIIIGGGGG
+CCCIGGBGB
+CCCGGBBBB
+CCCHBBBEE
+CCHHHBHEE
+CCHHHHHEE
+CCDHAEEEE
+CCDHHEEEE
+# solution: 8 1 5 0 6 3 7 4 2
+# difficulty: accu=672.69 (=Σd)   max=586.64 (=max d)   steps=16   峰值手法=inter-mixed·r2
+# weights: alpha=1.5  beta=1.0  gamma=0.2  delta=0.1  vis_cutoff=2.0
+# d = cost x f(可見度) x g(開放度) x 移動 x 換手法
+#   1 |     2.8 =   1 x1.39(vis 3.8) x2.00(open 1.00) x1.00 x1.00 | single-color   | 貓貓在 (8,5) — 亮紅 只剩一格
+#   2 |     2.6 =   1 x1.45(vis 3.3) x1.74(open 0.74) x1.04 x1.00 | single-color   | 貓貓在 (9,3) — 暗青 只剩一格
+#   3 |     3.5 =   1 x1.90(vis 1.7) x1.58(open 0.58) x1.18 x1.00 | single-color   | 貓貓在 (1,9) — 暗紫 只剩一格
+#   4 |     8.6 =   3 x1.59(vis 2.5) x1.41(open 0.41) x1.17 x1.10 | confine-color  | col 1 只剩 亮黃 → 排除其他 col 的 亮黃：(3,2)、(4,2)、(5,2)、(6,2)、(7,2)
+#   5 |     3.1 =   1 x2.00(vis 1.5) x1.35(open 0.35) x1.06 x1.10 | single-col     | 貓貓在 (2,2) — col 2 只剩一格
+#   6 |     7.5 =   3 x1.59(vis 2.5) x1.26(open 0.26) x1.13 x1.10 | confine-line   | 亮藍 只出現在 col 8 → 排除 col 8 的其他顏色：(3,8)、(4,8)
+#   7 |    11.5 =   6 x1.37(vis 4.1) x1.23(open 0.23) x1.03 x1.10 | stencil        | 定石: 不管 row 3 的貓貓在哪裡（(3,6)、(3,7)）都排除 (4,6)、(4,7)
+#   8 |    11.4 =   6 x1.49(vis 3.1) x1.21(open 0.21) x1.06 x1.00 | stencil        | 定石: 不管 col 8 的貓貓在哪裡（(5,8)、(6,8)、(7,8)）都排除 (6,7)
+#   9 |   586.6 = 300 x1.41(vis 3.6) x1.20(open 0.20) x1.05 x1.10 | inter-mixed    | 混色交集: 不管 row 3 的貓貓在哪裡（2 格，跨距 1）都排除 (5,6) — 其中 1 格要靠同色，最遠 2 格
+#  10 |    19.6 =   6 x2.42(vis 1.1) x1.19(open 0.19) x1.04 x1.10 | stencil-line   | 定石: 不管 暗橘 的貓貓在哪裡（(3,7)、(5,7)、(6,6)）都排除 (7,7)
+#  11 |     6.3 =   3 x1.60(vis 2.5) x1.17(open 0.17) x1.01 x1.10 | confine-color  | col 7 只剩 暗橘 → 排除其他 col 的 暗橘：(6,6)
+#  12 |     2.6 =   1 x2.00(vis 1.5) x1.16(open 0.16) x1.04 x1.10 | single-col     | 貓貓在 (3,6) — col 6 只剩一格
+#  13 |     1.7 =   1 x1.45(vis 3.3) x1.12(open 0.12) x1.04 x1.00 | single-color   | 貓貓在 (5,7) — 暗橘 只剩一格
+#  14 |     1.4 =   1 x1.26(vis 5.7) x1.06(open 0.06) x1.04 x1.00 | single-color   | 貓貓在 (7,8) — 亮藍 只剩一格
+#  15 |     1.6 =   1 x1.45(vis 3.3) x1.04(open 0.04) x1.09 x1.00 | single-color   | 貓貓在 (6,4) — 亮橘 只剩一格
+#  16 |     1.6 =   1 x1.50(vis 3.0) x1.01(open 0.01) x1.07 x1.00 | single-color   | 貓貓在 (4,1) — 亮黃 只剩一格

@@ -1,14 +1,37 @@
 12
-BBBBBCCAAAAD
-BBCCCCCCADAD
-BCCCBCCCCDAD
-BBBBBCCCDDDD
-BBBBECCDDDDD
-BEBEEEEDFFDD
-EEEEHEGFFFID
-EHHHHGGGGIII
-EEHGGGIGGGGI
-JJHHHGIIIIII
-JKKHHGHHIIII
-JKKKHHHHLIII
+CCCCCFFBBBBJ
+CCFFFFFFBJBJ
+CFFFCFFFFJBJ
+CCCCCFFFJJJJ
+CCCCHFFJJJJJ
+CHCHHHHJAAJJ
+HHHHEHKAAALJ
+HEEEEKKKKLLL
+HHEKKKLKKKKL
+IIEEEKLLLLLL
+IGGEEKEELLLL
+IGGGEEEEDLLL
 # solution: 7 1 5 10 4 9 6 3 11 0 2 8
+# difficulty: accu=175.72 (=Σd)   max=41.0 (=max d)   steps=20   峰值手法=grp-row-color·k3
+# weights: alpha=1.5  beta=1.0  gamma=0.2  delta=0.1  vis_cutoff=2.0
+# d = cost x f(可見度) x g(開放度) x 移動 x 換手法
+#   1 |     3.6 =   1 x1.82(vis 1.8) x2.00(open 1.00) x1.00 x1.00 | single-color   | 貓貓在 (12,9) — 暗青 只剩一格
+#   2 |    10.2 =   3 x1.60(vis 2.5) x1.83(open 0.83) x1.06 x1.10 | confine-line   | 暗紅 只出現在 row 11 → 排除 row 11 的其他顏色：(11,1)、(11,4)、(11,5)、(11,6)、(11,7)、(11,11)、(11,12)
+#   3 |     7.7 =   3 x1.43(vis 3.5) x1.78(open 0.78) x1.02 x1.00 | confine-line   | 暗黃 只出現在 row 10 → 排除 row 10 的其他顏色：(10,3)、(10,4)、(10,5)、(10,6)、(10,7)、(10,8)、(10,10)、(10,11)、(10,12)
+#   4 |    14.8 =   6 x1.21(vis 7.0) x1.72(open 0.72) x1.08 x1.10 | stencil        | 定石: 不管 row 10 的貓貓在哪裡（(10,1)、(10,2)）都排除 (9,1)、(9,2)、(11,2)
+#   5 |     2.9 =   1 x1.53(vis 2.8) x1.69(open 0.69) x1.02 x1.10 | single-color   | 貓貓在 (11,3) — 暗紅 只剩一格
+#   6 |     2.5 =   1 x1.50(vis 3.0) x1.62(open 0.62) x1.03 x1.00 | single-color   | 貓貓在 (10,1) — 暗黃 只剩一格
+#   7 |    16.2 =   6 x1.38(vis 4.0) x1.56(open 0.56) x1.15 x1.10 | stencil-line   | 定石: 不管 亮紅 的貓貓在哪裡（(6,10)、(7,8)、(7,10)）都排除 (7,11)
+#   8 |    15.2 =   6 x1.50(vis 3.0) x1.55(open 0.55) x1.09 x1.00 | stencil-line   | 定石: 不管 亮藍 的貓貓在哪裡（(7,5)、(8,2)、(8,4)、(8,5)）都排除 (8,6)
+#   9 |    17.0 =   6 x1.75(vis 2.0) x1.54(open 0.54) x1.05 x1.00 | stencil-line   | 定石: 不管 暗藍 的貓貓在哪裡（(7,7)、(8,7)、(8,8)、(9,4)、(9,5)、(9,6)、(9,8)、(9,10)、(9,11)）都排除 (9,7)
+#  10 |    24.5 =   6 x2.50(vis 1.0) x1.53(open 0.53) x1.06 x1.00 | stencil        | 定石: 不管 粉桃 的貓貓在哪裡（(8,10)、(8,11)、(8,12)、(9,12)）都排除 (9,11)
+#  11 |    41.0 =  18 x1.27(vis 5.5) x1.53(open 0.53) x1.07 x1.10 | grp-row-color  | 3-group: {亮藍,暗藍,粉桃} 只出現在 row {7,8,9} → 排除這些 row 的其他顏色：(7,2)、(7,4)、(7,6)、(7,8)、(7,10)、(7,12)
+#  12 |     3.1 =   1 x1.82(vis 1.8) x1.49(open 0.49) x1.05 x1.10 | single-color   | 貓貓在 (6,10) — 亮紅 只剩一格
+#  13 |     2.8 =   1 x1.90(vis 1.7) x1.37(open 0.37) x1.08 x1.00 | single-color   | 貓貓在 (5,5) — 亮橘 只剩一格
+#  14 |     2.6 =   1 x2.00(vis 1.5) x1.26(open 0.26) x1.03 x1.00 | single-row     | 貓貓在 (7,7) — row 7 只剩一格
+#  15 |     2.3 =   1 x1.82(vis 1.8) x1.19(open 0.19) x1.08 x1.00 | single-row     | 貓貓在 (9,12) — row 9 只剩一格
+#  16 |     2.2 =   1 x1.75(vis 2.0) x1.14(open 0.14) x1.08 x1.00 | single-color   | 貓貓在 (4,11) — 亮青 只剩一格
+#  17 |     1.9 =   1 x1.64(vis 2.3) x1.10(open 0.10) x1.05 x1.00 | single-color   | 貓貓在 (1,8) — 暗橘 只剩一格
+#  18 |     1.9 =   1 x1.64(vis 2.3) x1.06(open 0.06) x1.10 x1.00 | single-color   | 貓貓在 (2,2) — 亮黃 只剩一格
+#  19 |     1.6 =   1 x1.45(vis 3.3) x1.02(open 0.02) x1.10 x1.00 | single-color   | 貓貓在 (8,4) — 亮藍 只剩一格
+#  20 |     1.6 =   1 x1.50(vis 3.0) x1.01(open 0.01) x1.08 x1.00 | single-color   | 貓貓在 (3,6) — 暗紫 只剩一格

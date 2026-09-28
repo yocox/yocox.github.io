@@ -1,10 +1,27 @@
 8
-AAADBBBB
-AAADBBBB
-ACADDDBE
-AAAADDEE
-FFFDDDEE
-FHFFDEEE
-FHGGGEEG
-FHHGGGGG
+FFFDBBBB
+FFFDBBBB
+FEFDDDBG
+FFFFDDGG
+CCCDDDGG
+CACCDGGG
+CAHHHGGH
+CAAHHHHH
 # solution: 0 5 1 4 6 3 7 2
+# difficulty: accu=117.27 (=Σd)   max=39.51 (=max d)   steps=14   峰值手法=grp-col-color·k2
+# weights: alpha=1.5  beta=1.0  gamma=0.2  delta=0.1  vis_cutoff=2.0
+# d = cost x f(可見度) x g(開放度) x 移動 x 換手法
+#   1 |     3.6 =   1 x1.82(vis 1.8) x2.00(open 1.00) x1.00 x1.00 | single-color   | 貓貓在 (3,2) — 亮藍 只剩一格
+#   2 |     3.5 =   1 x1.82(vis 1.8) x1.70(open 0.70) x1.12 x1.00 | single-color   | 貓貓在 (8,3) — 亮紅 只剩一格
+#   3 |     9.2 =   3 x1.74(vis 2.0) x1.52(open 0.52) x1.06 x1.10 | confine-line   | 亮橘 只出現在 row 7 → 排除 row 7 的其他顏色：(7,1)、(7,6)、(7,7)
+#   4 |    21.6 =   6 x1.98(vis 1.5) x1.47(open 0.47) x1.12 x1.10 | stencil-line   | 定石: 不管 暗紫 的貓貓在哪裡（(1,1)、(4,4)）都排除 (1,4)
+#   5 |    39.5 =  12 x1.96(vis 1.6) x1.45(open 0.45) x1.05 x1.10 | grp-col-color  | 2-group: {亮黃,暗紫} 只出現在 col {1,4} → 排除這些 col 的其他顏色：(2,4)、(5,4)
+#   6 |    10.3 =   3 x2.00(vis 1.5) x1.42(open 0.42) x1.09 x1.10 | confine-color  | row 2 只剩 暗橘 → 排除其他 row 的 暗橘：(1,5)、(1,6)、(1,7)、(1,8)
+#   7 |     3.9 =   1 x2.29(vis 1.2) x1.36(open 0.36) x1.14 x1.10 | single-row     | 貓貓在 (1,1) — row 1 只剩一格
+#   8 |     2.4 =   1 x1.64(vis 2.3) x1.30(open 0.30) x1.12 x1.00 | single-color   | 貓貓在 (6,4) — 亮黃 只剩一格
+#   9 |     2.0 =   1 x1.56(vis 2.7) x1.19(open 0.19) x1.10 x1.00 | single-color   | 貓貓在 (7,8) — 亮橘 只剩一格
+#  10 |     6.0 =   3 x1.50(vis 3.0) x1.12(open 0.12) x1.08 x1.10 | confine-line   | 暗紅 只出現在 col 7 → 排除 col 7 的其他顏色：(2,7)
+#  11 |     9.8 =   6 x1.30(vis 5.0) x1.11(open 0.11) x1.02 x1.10 | stencil        | 定石: 不管 row 4 的貓貓在哪裡（(4,5)、(4,6)、(4,7)）都排除 (5,6)
+#  12 |     2.2 =   1 x1.82(vis 1.8) x1.09(open 0.09) x1.02 x1.10 | single-row     | 貓貓在 (5,7) — row 5 只剩一格
+#  13 |     1.6 =   1 x1.45(vis 3.3) x1.05(open 0.05) x1.05 x1.00 | single-color   | 貓貓在 (4,5) — 暗青 只剩一格
+#  14 |     1.6 =   1 x1.50(vis 3.0) x1.02(open 0.02) x1.05 x1.00 | single-color   | 貓貓在 (2,6) — 暗橘 只剩一格

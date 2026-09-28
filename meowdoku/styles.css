@@ -54,6 +54,11 @@ body {
   display: none;
 }
 
+/* 選關畫面裡互相切換的兩層（關卡包列表 / 關卡列表） */
+.view.hidden {
+  display: none;
+}
+
 h2 {
   font-size: 1rem;
   font-weight: 600;
@@ -65,6 +70,38 @@ h2 {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* 選關第一層：難度大類的小標 + 那一類的關卡包 */
+.pack-group {
+  margin-bottom: 18px;
+}
+
+.pack-group h3 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #9aa0a6;
+  margin: 0 0 8px;
+}
+
+/* 選關第二層：返回鍵 + 包名 */
+.pack-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 24px 0 8px;
+}
+
+.pack-header h2 {
+  margin: 0;
+}
+
+.pack-header .icon-btn {
+  border: none;
+  border-radius: 10px;
+  background: #303134;
+  color: #e8eaed;
+  cursor: pointer;
 }
 
 .button-grid button {
@@ -79,10 +116,37 @@ h2 {
   cursor: pointer;
 }
 
-/* Size list: fixed 5 per row so the last row never stretches */
-#size-buttons {
+/* Pack list: 每類的關卡包，一行 5 個，最後一行不會被拉開 */
+.pack-group .button-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
+}
+
+/* 關卡包按鈕：包名 + 星數。分母是「全部三星」，所以配色和關卡按鈕一致 ——
+   滿星綠、有星黃、沒玩過維持原色。 */
+.pack-group button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 4px;
+  font-size: 0.9rem;
+  line-height: 1.2;
+}
+
+.pack-group button .pack-score {
+  font-size: 0.62rem;
+  opacity: 0.85;
+}
+
+.pack-group button.partial {
+  background: #372800;
+  color: #f5c518;
+}
+
+.pack-group button.full {
+  background: #1b3a22;
+  color: #81c995;
 }
 
 /* Level list: fixed 5 per row so the last row never stretches */
@@ -415,6 +479,68 @@ h2 {
   font-weight: 700;
   color: #a8e6a3;
   margin-bottom: 28px;
+}
+
+/* 難度分析（debug 用）：關卡檔裡 `# difficulty:` 那一整塊，原樣印在盤面下面。
+   行很長，橫向捲動而不是換行 —— 數字欄位對齊才看得出每一步差在哪。 */
+.analysis.hidden {
+  display: none;
+}
+
+.analysis {
+  margin-top: 16px;
+  background: #26272a;
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+
+.analysis pre {
+  margin: 0;
+  overflow-x: auto;
+  font-size: 0.62rem;
+  line-height: 1.5;
+  color: #c8cbd0;
+  white-space: pre;
+}
+
+/* 過關視窗裡的難度評分：十格，點一下就存。純粹是蒐集人類體感用的資料，
+   不影響星數，也不影響 difficulty.py 算出來的分數。 */
+.rating {
+  margin-bottom: 24px;
+}
+
+.rating-label {
+  font-size: 0.85rem;
+  color: #9aa0a6;
+  margin-bottom: 8px;
+}
+
+.rating-label span {
+  display: block;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.rating-cells {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 4px;
+}
+
+.rating-cells button {
+  padding: 8px 0;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  background: #3c4043;
+  color: #e8eaed;
+  cursor: pointer;
+}
+
+.rating-cells button.selected {
+  background: #8ab4f8;
+  color: #202124;
+  font-weight: 700;
 }
 
 .modal-buttons {
