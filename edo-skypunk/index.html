@@ -30,6 +30,7 @@
   #go{font-family:inherit;font-size:24px;letter-spacing:.5em;text-indent:.5em;padding:10px 34px;background:#b2452f;color:#fbf1dc;border:2px solid #f6ecd8;border-radius:2px;cursor:pointer}
   #go:disabled{opacity:.5;cursor:wait}
   #go:hover:not(:disabled){background:#cc5538}
+  #photoHint{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);color:#fff;font-size:15px;letter-spacing:.18em;text-shadow:0 0 6px rgba(30,20,10,.95);opacity:0;transition:opacity .8s;pointer-events:none;z-index:25}
   body.photo #hud{display:none!important}
   body.photo #panel{transform:translateX(105%)}
   #menuBtn{position:fixed;right:16px;top:14px;width:42px;height:38px;font-size:20px;line-height:1;cursor:pointer;font-family:inherit;color:#3b2a20;padding:0}
@@ -67,6 +68,7 @@
   <button id="menuBtn" class="plaque" title="設定 (Tab)">☰</button>
 </div>
 <div id="panel"></div>
+<div id="photoHint">拍照模式　1 俯瞰　2 仰望　3 水平　W 慢慢前進　H 離開</div>
 <div id="start">
   <div>
     <h1>天街</h1>
@@ -91,9 +93,16 @@ const C=h=>new THREE.Color(h);
 
 /* ---------- geometry buffer builder ---------- */
 const _v=new V3,_a=new V3,_b=new V3,_nm=new THREE.Matrix3(),_m=new THREE.Matrix4(),_q=new THREE.Quaternion();
+// placement transform for everything generated while it is set: rotate about Y, then move (buildings can stand at any angle)
+// world x = c*x - s*z + X, world z = s*x + c*z + Z
+let XF=null;
+const xfP=(x,z)=>XF?[XF.c*x-XF.s*z+XF.x,XF.s*x+XF.c*z+XF.z]:[x,z];
+const xfD=(x,z)=>XF?[XF.c*x-XF.s*z,XF.s*x+XF.c*z]:[x,z];
+const xf3=p=>{const q=xfP(p[0],p[2]);return[q[0],p[1],q[1]]};
 class Buf{
   constructor(){this.p=[];this.n=[];this.c=[];this.u=[];this.i=[];this.v=0}
   quad(a,b,c,d,col,u0=0,v0=0,u1=1,v1=1){
+    if(XF){a=xf3(a);b=xf3(b);c=xf3(c);d=xf3(d)}
     _a.set(b[0]-a[0],b[1]-a[1],b[2]-a[2]);_b.set(d[0]-a[0],d[1]-a[1],d[2]-a[2]);_a.cross(_b).normalize();
     this.p.push(a[0],a[1],a[2],b[0],b[1],b[2],c[0],c[1],c[2],d[0],d[1],d[2]);
     for(let k=0;k<4;k++){this.n.push(_a.x,_a.y,_a.z);this.c.push(col.r,col.g,col.b)}
@@ -113,8 +122,8 @@ class Buf{
   geom(g,m,col){
     const P=g.attributes.position,N=g.attributes.normal,U=g.attributes.uv,base=this.v;_nm.getNormalMatrix(m);
     for(let i=0;i<P.count;i++){
-      _v.fromBufferAttribute(P,i).applyMatrix4(m);this.p.push(_v.x,_v.y,_v.z);
-      _v.fromBufferAttribute(N,i).applyMatrix3(_nm).normalize();this.n.push(_v.x,_v.y,_v.z);
+      _v.fromBufferAttribute(P,i).applyMatrix4(m);if(XF){const q=xfP(_v.x,_v.z);_v.x=q[0];_v.z=q[1]}this.p.push(_v.x,_v.y,_v.z);
+      _v.fromBufferAttribute(N,i).applyMatrix3(_nm).normalize();if(XF){const q=xfD(_v.x,_v.z);_v.x=q[0];_v.z=q[1]}this.n.push(_v.x,_v.y,_v.z);
       this.c.push(col.r,col.g,col.b);this.u.push(U?U.getX(i):0,U?U.getY(i):0);
     }
     if(g.index){const I=g.index;for(let i=0;i<I.count;i++)this.i.push(base+I.getX(i))}else for(let i=0;i<P.count;i++)this.i.push(base+i);
@@ -142,15 +151,19 @@ function panel(buf,cx,cz,side,dist,s,wd,y0,h,col,u0=0,v0=0,u1=1,v1=1){
   const ax=bx+tx*(s-wd/2),az=bz+tz*(s-wd/2),ex=bx+tx*(s+wd/2),ez=bz+tz*(s+wd/2);
   buf.quad([ax,y0,az],[ex,y0,ez],[ex,y0+h,ez],[ax,y0+h,az],col,u0,v0,u1,v1);
 }
-// curved Japanese roof: top rectangle (w0,d0) at y+h sweeping down to eave rectangle (w1,d1) at y, corners lifted
+// curved Japanese roof: top rectangle (w0,d0) at y+h sweeping down to eave rectangle (w1,d1) at y.
+// The eave runs level along most of each side and sweeps up smoothly only near the corners (noki-zori).
 function roof(buf,cx,y,cz,w0,d0,w1,d1,h,col,lift=1.2,rows=4){
-  const rings=[];
+  const K=3,N=8*K,rings=[];   // K steps from the middle of a side to its corner
   for(let i=0;i<=rows;i++){
-    const t=i/rows,hw=lerp(w0,w1,Math.pow(t,.9))/2,hd=lerp(d0,d1,Math.pow(t,.9))/2,yy=y+h*Math.pow(1-t,1.9),cl=lift*t*t*t;
-    rings.push([[cx+hw,yy+cl,cz+hd],[cx,yy,cz+hd],[cx-hw,yy+cl,cz+hd],[cx-hw,yy,cz],[cx-hw,yy+cl,cz-hd],[cx,yy,cz-hd],[cx+hw,yy+cl,cz-hd],[cx+hw,yy,cz]]);
+    const t=i/rows,hw=lerp(w0,w1,Math.pow(t,.9))/2,hd=lerp(d0,d1,Math.pow(t,.9))/2,yy=y+h*Math.pow(1-t,1.9),cl=lift*t*t*t,ring=[];
+    const C4=[[hw,hd],[-hw,hd],[-hw,-hd],[hw,-hd]];
+    for(let e=0;e<4;e++){const [ax,az]=C4[e],[bx,bz]=C4[(e+1)%4];
+      for(let k=0;k<2*K;k++){const u=k/(2*K),m=Math.abs(u*2-1);ring.push([cx+lerp(ax,bx,u),yy+cl*m*m*m,cz+lerp(az,bz,u)])}}
+    rings.push(ring);
   }
-  for(let i=0;i<rows;i++)for(let k=0;k<8;k++){
-    const k2=(k+1)%8,side=(k>>1)%2===0?w1:d1,rep=Math.max(1,Math.round(side/5));
+  for(let i=0;i<rows;i++)for(let k=0;k<N;k++){
+    const k2=(k+1)%N,side=Math.floor(k/(2*K))%2===0?w1:d1,rep=Math.max(1,Math.round(side/5))/K;
     buf.quad(rings[i+1][k2],rings[i+1][k],rings[i][k],rings[i][k2],col,(k+1)*rep,i+1,k*rep,i);
   }
 }
@@ -291,6 +304,11 @@ function loadAssets(){
   for(let i=0;i<8;i++){tryImg('person_'+pad(i+1),im=>putSprite(i,im));tryImg('plant_'+pad(i+1),im=>putSprite(8+i,im))}
   for(let i=0;i<4;i++)tryImg('rider_'+pad(i+1),im=>putSprite(16+i,im,true));
   for(let i=0;i<4;i++)tryImg('cloud_'+pad(i+1),im=>putCloud(i,im));
+  // vine decals go in the card atlas: climbing ones stand on the bottom edge, hanging ones hang from the top edge
+  for(let i=0;i<4;i++)tryImg('vine_'+pad(i+1),im=>{const s=prepSprite(im);if(!s)return;const c=i%4,r=Math.floor(i/4),sc=Math.min((CW-6)/s.w,(CW-6)/s.h),dw=s.w*sc,dh=s.h*sc;
+    cg.clearRect(c*CW,r*CW,CW,CW);cg.drawImage(s.cv,s.x0,s.y0,s.w,s.h,c*CW+(CW-dw)/2,(i===1||i===2)?r*CW+3:r*CW+CW-3-dh,dw,dh);cardTex.needsUpdate=true});
+  // the player, painted from behind: straight, banking left, banking right
+  ['back','left','right'].forEach((n,i)=>tryImg('player_'+n,im=>{if(putPlayer(i,im)&&i===0)usePlayerSprite()}));
   // prop cards; a slot without a painting borrows one that loaded
   const got=[];let left=16;
   const done=()=>{if(--left>0||!got.length)return;for(let i=0;i<16;i++)if(!got.includes(i)){const j=24+got[i%got.length],k=24+i;
@@ -322,7 +340,7 @@ const postU={tC:{value:null},tD:{value:null},tBlur:{value:null},tBloomS:{value:n
   uInvProj:{value:new THREE.Matrix4()},uCamWorld:{value:new THREE.Matrix4()},uCamPos:{value:new THREE.Vector3()},
   uSunDir:{value:new THREE.Vector3(0,1,0)},uSunCol:{value:new THREE.Color()},uFogCol:{value:new THREE.Color()},uGlowCol:{value:new THREE.Color('#e08a52')},
   uFogA:{value:.0016},uShaftCol:{value:new THREE.Color()},
-  kInk:{value:1},kDof:{value:1},kBloom:{value:1},kDream:{value:1},kShaft:{value:1},kNear:{value:1},kGrain:{value:1},kSketch:{value:1}};
+  kInk:{value:1},kDof:{value:1},kBloom:{value:1},kDream:{value:1},kShaft:{value:1},kNear:{value:1},kGrain:{value:1},kSketch:{value:1},kCrease:{value:1}};
 const postCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1),fsScene=new THREE.Scene(),fsMesh=new THREE.Mesh(new THREE.PlaneGeometry(2,2));fsMesh.frustumCulled=false;fsScene.add(fsMesh);
 const FSV='varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}';
 const fsMat=(uniforms,frag)=>new THREE.ShaderMaterial({uniforms,vertexShader:FSV,fragmentShader:frag,depthTest:false,depthWrite:false});
@@ -342,7 +360,7 @@ const shaftMat=fsMat({tSrc:{value:null},tD:{value:null},light:{value:new THREE.V
     vec2 d=(light-vUv)/40.;vec2 p=vUv;float w=1.;vec3 acc=vec3(0.);
     for(int i=0;i<40;i++){p+=d;float sky=step(.99999,texture2D(tD,p).x);vec3 c=texture2D(tSrc,p).rgb;acc+=c*sky*w;w*=.955;}
     gl_FragColor=vec4(acc/40.*str,1.);}`);
-const postMat=fsMat(postU,`uniform sampler2D tC,tD,tBlur,tBloomS,tBloomW,tShaft;uniform vec2 px;uniform float night,time,uFogA,kInk,kDof,kBloom,kDream,kShaft,kNear,kGrain,kSketch;
+const postMat=fsMat(postU,`uniform sampler2D tC,tD,tBlur,tBloomS,tBloomW,tShaft;uniform vec2 px;uniform float night,time,uFogA,kInk,kDof,kBloom,kDream,kShaft,kNear,kGrain,kSketch,kCrease;
   uniform mat4 uInvProj,uCamWorld;uniform vec3 uCamPos,uSunDir,uSunCol,uFogCol,uGlowCol,uShaftCol;varying vec2 vUv;
   const float N=1.,F=9000.;
   float iz(vec2 uv){float d=texture2D(tD,uv).x;return((F+N)-(2.*d-1.)*(F-N))/(2.*N*F);}
@@ -369,6 +387,9 @@ const postMat=fsMat(postU,`uniform sampler2D tC,tD,tBlur,tBloomS,tBloomW,tShaft;
     col*=1.-ao;
     vec3 ink=mix(vec3(.11,.055,.04),vec3(.01,.012,.05),night);
     col=mix(col,col*.22+ink*.25,clamp(line*.85*kInk,0.,1.));
+    // creases: where a surface turns a corner (box edges, eave lines, rails against walls) draw a finer, lighter line too
+    float crease=smoothstep(.0006,.0018,e)*(1.-smoothstep(.0035,.014,e))*(1.-smoothstep(140.,420.,z));
+    col=mix(col,col*.5+ink*.1,clamp(crease*.6*kCrease,0.,1.));
     vec3 blur=texture2D(tBlur,vUv).rgb;
     // far things go soft
     if(!isSky)col=mix(col,blur,min(.95,smoothstep(320.,2200.,dist)*.8*kDof));
@@ -456,8 +477,29 @@ const M={
   card:new THREE.MeshLambertMaterial({map:cardTex,alphaTest:.5,side:THREE.DoubleSide}),
 };
 // bays whose vertex colour is pure white are "lit" at night; dimmer ones stay dark
-M.fac.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\n totalEmissiveRadiance*=step(.99,vColor.r);')};
+// facades get depth: dark parts of the painting (open shop fronts, doorways, rooms behind lattices) are treated as
+// further back, and the texture is marched along the view ray (relief mapping) so they shift like real recesses when seen at an angle
+M.fac.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader
+  .replace('void main() {',`vec2 pUv;
+float facDepth(vec2 uv){vec3 c=texture2D(map,uv).rgb;return clamp((.55-dot(c,vec3(.299,.587,.114)))*2.,0.,1.);}
+void main() {`)
+  .replace('#include <map_fragment>',`
+    pUv=vMapUv;float vd=length(vViewPosition);
+    if(vd<230.){
+      vec3 q0=dFdx(-vViewPosition),q1=dFdy(-vViewPosition);vec2 s0=dFdx(vMapUv),s1=dFdy(vMapUv);
+      vec3 Nn=normalize(vNormal),q1p=cross(q1,Nn),q0p=cross(Nn,q0),Tt=q1p*s0.x+q0p*s1.x,Bt=q1p*s0.y+q0p*s1.y;
+      float det=max(dot(Tt,Tt),dot(Bt,Bt));
+      if(det>0.){float sc=inversesqrt(det);vec3 V=normalize(vViewPosition),vt=vec3(dot(V,Tt*sc),dot(V,Bt*sc),dot(V,Nn));
+        vec2 cmin=floor(vMapUv*vec2(4.,8.))/vec2(4.,8.),cmax=cmin+vec2(.25,.125);cmin+=vec2(.004,.003);cmax-=vec2(.004,.003);
+        vec2 du=-vt.xy/max(vt.z,.3)*.014*kDepth*(1.-smoothstep(140.,230.,vd))/10.;float layer=0.,h=facDepth(pUv);
+        for(int i=0;i<10;i++){if(layer>=h)break;pUv+=du;layer+=.1;h=facDepth(pUv);}
+        pUv=clamp(pUv,cmin,cmax);}
+    }
+    diffuseColor*=texture2D(map,pUv);`)
+  .replace('#include <emissivemap_fragment>','totalEmissiveRadiance*=texture2D(emissiveMap,pUv).rgb*step(.99,vColor.r);');
+  sh.uniforms.kDepth=facDepthU;sh.fragmentShader='uniform float kDepth;\n'+sh.fragmentShader};
 // cloth sways: banners carry the sway weight in vertex colour (0 at the pole, 1 at the hem); plain cloth carries it in uv.y
+const facDepthU={value:1};
 const SWAY='sin(uTime*1.8+position.x*.3+position.z*.3+position.y*.25)*.42+sin(uTime*3.1+position.x*.7-position.z*.5)*.12';
 M.ban.onBeforeCompile=sh=>{sh.uniforms.uTime=windU;sh.vertexShader='uniform float uTime;\n'+sh.vertexShader.replace('#include <color_vertex>','vColor=vec3(1.);').replace('#include <begin_vertex>','#include <begin_vertex>\n transformed+=normal*('+SWAY+')*color.r;')};
 M.cloth.onBeforeCompile=sh=>{sh.uniforms.uTime=windU;sh.vertexShader='uniform float uTime;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n transformed+=normal*('+SWAY+')*uv.y;')};
@@ -482,19 +524,23 @@ const lanternG=new THREE.LatheGeometry([[.02,-.7],[.36,-.62],[.5,0],[.36,.62],[.
 
 /* ---------- colliders ---------- */
 const CELL=80,grid=new Map();
+// colliders are boxes that may be turned about Y (they follow XF while a building is being generated)
 function addCol(cx,cy,cz,sx,sy,sz){
-  const b=[cx-sx/2,cy-sy/2,cz-sz/2,cx+sx/2,cy+sy/2,cz+sz/2];
-  for(let i=Math.floor((b[0]-3)/CELL);i<=Math.floor((b[3]+3)/CELL);i++)for(let k=Math.floor((b[2]-3)/CELL);k<=Math.floor((b[5]+3)/CELL);k++){
+  const [x,z]=xfP(cx,cz),c=XF?XF.c:1,s=XF?XF.s:0,hx=sx/2,hy=sy/2,hz=sz/2;
+  const ex=Math.abs(c)*hx+Math.abs(s)*hz,ez=Math.abs(s)*hx+Math.abs(c)*hz,b={x,y:cy,z,hx,hy,hz,c,s};
+  for(let i=Math.floor((x-ex-3)/CELL);i<=Math.floor((x+ex+3)/CELL);i++)for(let k=Math.floor((z-ez-3)/CELL);k<=Math.floor((z+ez+3)/CELL);k++){
     const key=i+','+k;let l=grid.get(key);if(!l)grid.set(key,l=[]);l.push(b)}
 }
 function collide(p,r){
   const list=grid.get(Math.floor(p.x/CELL)+','+Math.floor(p.z/CELL));if(!list)return false;let hit=false;
   for(const b of list){
-    const dx=p.x-clamp(p.x,b[0],b[3]),dy=p.y-clamp(p.y,b[1],b[4]),dz=p.z-clamp(p.z,b[2],b[5]),d2=dx*dx+dy*dy+dz*dz;
-    if(d2>=r*r)continue;hit=true;
-    if(d2>1e-8){const d=Math.sqrt(d2),k=(r-d)/d;p.x+=dx*k;p.y+=dy*k;p.z+=dz*k}
-    else{const pen=[p.x-b[0],b[3]-p.x,p.y-b[1],b[4]-p.y,p.z-b[2],b[5]-p.z];let m=0;for(let i=1;i<6;i++)if(pen[i]<pen[m])m=i;
-      if(m===0)p.x=b[0]-r;else if(m===1)p.x=b[3]+r;else if(m===2)p.y=b[1]-r;else if(m===3)p.y=b[4]+r;else if(m===4)p.z=b[2]-r;else p.z=b[5]+r}
+    const wx=p.x-b.x,wz=p.z-b.z,lx=b.c*wx+b.s*wz,lz=-b.s*wx+b.c*wz,ly=p.y-b.y;   // into the box's own frame
+    const qx=lx-clamp(lx,-b.hx,b.hx),qy=ly-clamp(ly,-b.hy,b.hy),qz=lz-clamp(lz,-b.hz,b.hz),d2=qx*qx+qy*qy+qz*qz;
+    if(d2>=r*r)continue;hit=true;let px=0,py=0,pz=0;
+    if(d2>1e-8){const d=Math.sqrt(d2),k=(r-d)/d;px=qx*k;py=qy*k;pz=qz*k}
+    else{const pen=[lx+b.hx,b.hx-lx,ly+b.hy,b.hy-ly,lz+b.hz,b.hz-lz];let m=0;for(let i=1;i<6;i++)if(pen[i]<pen[m])m=i;
+      const v=pen[m]+r;if(m===0)px=-v;else if(m===1)px=v;else if(m===2)py=-v;else if(m===3)py=v;else if(m===4)pz=-v;else pz=v}
+    p.x+=b.c*px-b.s*pz;p.y+=py;p.z+=b.s*px+b.c*pz;   // push back out, in world space
   }
   return hit;
 }
@@ -510,7 +556,7 @@ function newBand(B){B.D=newBufs();B.Ds.push(B.D)}
 function addDetail(B){for(const D of B.Ds)for(const k in D){if(!(D[k] instanceof Buf))continue;const m=D[k].mesh(M[k]);
   if(m){m.matrixAutoUpdate=false;m.receiveShadow=k!=='glow';m.geometry.computeBoundingSphere();detailMeshes.push(m);scene.add(m)}}}
 function hitTest(x,y,z,r){const l=grid.get(Math.floor(x/CELL)+','+Math.floor(z/CELL));if(!l)return false;
-  for(const b of l)if(x>b[0]-r&&x<b[3]+r&&y>b[1]-r&&y<b[4]+r&&z>b[2]-r&&z<b[5]+r)return true;return false}
+  for(const b of l){const wx=x-b.x,wz=z-b.z;if(Math.abs(b.c*wx+b.s*wz)<b.hx+r&&Math.abs(-b.s*wx+b.c*wz)<b.hz+r&&Math.abs(y-b.y)<b.hy+r)return true}return false}
 const LCOL=()=>pick([LRED,LRED,LCREAM,LCREAM,LORANGE]);
 // kind 0 round chochin, 1 tall cylinder, 2 square andon
 function lantern(B,x,y,z,size,col,kind=0){
@@ -518,13 +564,18 @@ function lantern(B,x,y,z,size,col,kind=0){
   else B.glow.at(lanternG,x,y,z,size*(kind===1?.7:1),size*(kind===1?1.5:1),size*(kind===1?.7:1),col);
   const hh=(kind===1?1.05:kind===2?.6:.72)*size;
   B.wood.box(x,y+hh,z,.5*size,.12*size,.5*size,DARK);B.wood.box(x,y-hh,z,.4*size,.1*size,.4*size,DARK);
-  lanternPts.push(x,y,z);
+  const [wx,wz]=xfP(x,z);lanternPts.push(wx,y,wz);
+}
+// a chain hanging straight down with lanterns strung along it (from eave corners, flag poles, terraces)
+function hangChain(B,x,ytop,z,n,kind){
+  const [wx,wz]=xfP(x,z),step=kind===1?1.9:1.5;ropeP.push(wx,ytop,wz,wx,ytop-n*step+.2,wz);
+  for(let k=0;k<n;k++)lantern(B,x,ytop-.9-k*step,z,.7,k%2?LRED:LCREAM,kind);
 }
 // a sagging rope hung with lanterns
 function lanternRow(B,ax,ay,az,bx,by,bz,step,sag,kind){
   const L=Math.hypot(bx-ax,bz-az),n=Math.max(2,Math.round(L/step)),lc=chance(.5)?null:LCOL();let px=ax,py=ay,pz=az;
   for(let k=1;k<=n;k++){const t=k/n,x=lerp(ax,bx,t),y=lerp(ay,by,t)-Math.sin(t*Math.PI)*sag,z=lerp(az,bz,t);
-    ropeP.push(px,py,pz,x,y,z);px=x;py=y;pz=z;if(k<n)lantern(B,x,y-.85,z,.8,lc||(k%3?LRED:LCREAM),kind)}
+    const p0=xfP(px,pz),p1=xfP(x,z);ropeP.push(p0[0],py,p0[1],p1[0],y,p1[1]);px=x;py=y;pz=z;if(k<n)lantern(B,x,y-.85,z,.8,lc||(k%3?LRED:LCREAM),kind)}
 }
 // cloth with the kanji atlas; the bottom edge sways (weight in vertex colour)
 function flagQuad(B,ax,az,bx,bz,y0,y1,cell,sway){const u=cellUV(cell);B.ban.quad([ax,y0,az],[bx,y0,bz],[bx,y1,bz],[ax,y1,az],WHITE,u[0],u[1],u[2],u[3]);
@@ -598,7 +649,7 @@ function spMat(maxD,scaleU){
   m.uniforms.map.value=spTex;m.uniforms.uTint=spTint;if(scaleU)m.uniforms.uScale=scaleU;return m;
 }
 const SPRS={people:[],trees:[]};
-function addSprite(list,x,y,z,size,cell,anchor=0,flip=1){list.push(x,y,z,size,cell,anchor,flip)}
+function addSprite(list,x,y,z,size,cell,anchor=0,flip=1){const [wx,wz]=xfP(x,z);list.push(wx,y,wz,size,cell,anchor,flip)}
 function spriteMesh(arr,maxD,dynamic,scaleU){
   const n=Math.max(1,arr.length/7),g=new THREE.InstancedBufferGeometry(),pl=new THREE.PlaneGeometry(1,1);pl.translate(0,.5,0);
   g.index=pl.index;g.setAttribute('position',pl.attributes.position);g.setAttribute('uv',pl.attributes.uv);
@@ -702,6 +753,37 @@ function balconyProps(B,T,cx,cz,side,dist,fy,dep,bw,s){
   const np=chance(.4)?RI(1,com?3:2):0;for(let i=0;i<np;i++){const [qx,qz]=pt(dist+R(1.2,dep-.8),ra());person(B,qx,fy+.4,qz)}
   for(let k=chance(.65)?RI(1,2):0;k>0;k--){const [qx,qz]=pt(dist+R(1.3,dep-1.3),ra());card(qx,fy+.4,qz)}
 }
+// remember a balcony/terrace/veranda bay: world position (for cats) plus its local frame (for doors built later)
+function rec(T,o){const [wx,wz]=xfP(o.lx,o.lz);o.x=wx;o.z=wz;o.xf=XF;o.T=T;o.used=false;T.balconies.push(o)}
+// painted vine decals on walls (card atlas cells): 0 climbing ivy, 1 wisteria, 2 trailing ivy, 3 morning glory
+function vine(B,cx,cz,side,dist,s,y,size,down){const u=cardUV(down?pick([1,2]):pick([0,3]));panel(B.card,cx,cz,side,dist,s,size,down?y-size:y,size,WHITE,u[0],u[1],u[2],u[3])}
+// a projecting signboard hung on two chains from a bracket, readable down the street
+function hangSign(B,cx,cz,side,dist,s,ytop,cell){
+  const [nx,nz]=NRM[side],tx=nz,tz=-nx,X=side<2,P=o=>[cx+nx*o+tx*s,cz+nz*o+tz*s],o0=dist+.9,o1=dist+2.5,y1=ytop-1,y0=y1-3.8;
+  const pc=P(dist+1.5);B.wood.box(pc[0],ytop,pc[1],X?3:.3,.3,X?.3:3,DARK);
+  const a=P(o0),b=P(o1),m=P((o0+o1)/2);flagQuad(B,a[0],a[1],b[0],b[1],y0,y1,cell,0);
+  for(const yy of[y0,y1])B.wood.box(m[0],yy,m[1],X?o1-o0+.3:.24,.24,X?.24:o1-o0+.3,DARK);
+  for(const p of[a,b]){const w=xfP(p[0],p[1]);ropeP.push(w[0],ytop,w[1],w[0],y1,w[1])}
+}
+// rafter ends showing under a deep eave
+function rafters(B,cx,cz,w,d,y,ext){
+  for(let side=0;side<4;side++){const len=side<2?d:w,dist=(side<2?w:d)/2,[nx,nz]=NRM[side],tx=nz,tz=-nx,X=side<2,n=Math.floor(len/1.5);
+    for(let i=0;i<=n;i++){const a=-len/2+len*i/n,c=[cx+nx*(dist+ext/2)+tx*a,cz+nz*(dist+ext/2)+tz*a];B.wood.box(c[0],y,c[1],X?ext:.22,.26,X?.22:ext,DARK)}}
+}
+// kara-hafu: the undulating curved gable over an entrance, ridge running out from the wall
+function karahafu(B,cx,cz,side,dist,s,y,wd,dp,h,col){
+  const [nx,nz]=NRM[side],tx=nz,tz=-nx,N=14,prof=t=>{const a=Math.abs(t);return h*Math.pow(Math.cos(a*Math.PI/2),.7)+(a>.78?h*.22*((a-.78)/.22)**2:0)};
+  const P=(o,t)=>[cx+nx*o+tx*(s+t*wd/2),cz+nz*o+tz*(s+t*wd/2)];
+  for(let i=0;i<N;i++){const t0=-1+2*i/N,t1=t0+2/N,a0=P(dist,t0),a1=P(dist,t1),b0=P(dist+dp,t0),b1=P(dist+dp,t1),y0=y+prof(t0),y1=y+prof(t1);
+    B.roof.quad([b0[0],y0-.25,b0[1]],[b1[0],y1-.25,b1[1]],[a1[0],y1+.25,a1[1]],[a0[0],y0+.25,a0[1]],col,i/N*wd/3,1,(i+1)/N*wd/3,0);
+    B.flat.quad([b0[0],y0-1.05,b0[1]],[b1[0],y1-1.05,b1[1]],[b1[0],y1-.25,b1[1]],[b0[0],y0-.25,b0[1]],DARK);
+    B.flat.quad([b0[0],y-.9,b0[1]],[b1[0],y-.9,b1[1]],[b1[0],y1-1.05,b1[1]],[b0[0],y0-1.05,b0[1]],PLASTER)}
+}
+// iri-moya: a hipped roof with a small gable rising out of its top
+function irimoya(B,cx,y,cz,w,d,h,col){
+  const X=w>=d;roof(B.roof,cx,y,cz,X?w*.62:w*.38,X?d*.38:d*.62,w+6,d+6,h*.5,col,1.7,3);
+  roofGable(B,cx,y+h*.42,cz,X?w*.66:w*.42,X?d*.42:d*.66,h*.62,col,1.4);
+}
 function balcony(B,T,cx,cz,side,len,dist,fy){
   const D=B.D,dep=4.5,bw=chance(.5)?len:Math.min(len,R(6,len)),s=bw>=len?0:R(-(len-bw)/2,(len-bw)/2),[nx,nz]=NRM[side],tx=nz,tz=-nx,X=side<2;
   const pt=(d,a)=>[cx+nx*d+tx*a,cz+nz*d+tz*a];
@@ -722,23 +804,27 @@ function balcony(B,T,cx,cz,side,len,dist,fy){
     for(let a=-bw/2+1;a<bw/2-1;a+=R(1.3,2))panel(D.cloth,cx,cz,side,dist+dep,s+a,R(.8,1.2),fy+1.8,1.5,pick([WHITE,WHITE,INDIGO,C('#c9d6e6'),C('#d99a8a')]),0,1,1,0);
   }
   if(chance(.22))banner(D,cx,cz,side,dist+dep+.15,s+R(-.3,.3)*bw,2.1,fy-8.3,8,RI(0,GENERAL.length-1));
+  if(chance(.3))vine(D,cx,cz,side,dist+dep+.17,s+R(-.35,.35)*bw,fy+.35,R(3,4.6),true);   // greenery spilling over the rail
+  if(chance(.2)){const a=s+R(-.4,.4)*bw,[qx,qz]=pt(dist+dep-.4,a),w=xfP(qx,qz);ropeP.push(w[0],fy,w[1],w[0],fy-1.3,w[1]);   // a pot hung under the deck
+    D.wood.box(qx,fy-1.6,qz,.7,.55,.7,pick(POTS));D.flat.at(ico0,qx,fy-1.1,qz,.7,.5,.7,pick(GREENS),0,R(0,3));
+    for(let k=0;k<4;k++)panel(D.cloth,qx,qz,R(0,1)<.5?2:0,.3,R(-.3,.3),.4,fy-1.9-R(.5,1.6),R(.8,1.8),pick(GREENS),0,1,1,0)}
   balconyProps(D,T,cx,cz,side,dist,fy,dep,bw,s);
-  T.balconies.push({x:px,z:pz,fy,side,s,dist,dep,bw,cx,cz,T,used:false});
+  rec(T,{lx:px,lz:pz,fy,side,s,dist,dep,bw,cx,cz});
 }
 // engawa: a veranda running right round one floor, its posts carrying an eave hung with lanterns
-function veranda(B,T,cx,cz,w,d,fy){
-  const D=B.D,dep=3.4,hx=w/2+dep,hz=d/2+dep;
+function veranda(B,T,cx,cz,w,d,fy,fh){
+  const D=B.D,dep=3.4,hx=w/2+dep,hz=d/2+dep,ph=fh-.4;
   B.wood.box(cx,fy+.2,cz,w+dep*2,.4,d+dep*2,PLANK);addCol(cx,fy+.2,cz,w+dep*2,.4,d+dep*2);
   for(const [x0,z0,x1,z1] of[[hx,-hz,hx,hz],[-hx,-hz,-hx,hz],[-hx,hz,hx,hz],[-hx,-hz,hx,-hz]]){
     const X=x0!==x1,len=X?2*hx:2*hz,mx=cx+(x0+x1)/2,mz=cz+(z0+z1)/2;
     B.wood.box(mx,fy+1.55,mz,X?len:.22,.22,X?.22:len,DARK);B.wood.box(mx,fy+.95,mz,X?len:.14,.14,X?.14:len,DARK);
-    const n=Math.max(2,Math.round(len/4.5)+1);for(let k=0;k<n-1;k++){const t=k/(n-1);B.wood.box(cx+x0+(x1-x0)*t,fy+3.5,cz+z0+(z1-z0)*t,.42,6.6,.42,DARK)}
-    if(chance(.6)){const i=.35;lanternRow(D,cx+x0*(1-i/hx),fy+5.5,cz+z0*(1-i/hz),cx+x1*(1-i/hx),fy+5.5,cz+z1*(1-i/hz),3,.6,RI(0,1))}
+    const n=Math.max(2,Math.round(len/4.5)+1);for(let k=0;k<n-1;k++){const t=k/(n-1);B.wood.box(cx+x0+(x1-x0)*t,fy+.2+ph/2,cz+z0+(z1-z0)*t,.42,ph,.42,DARK)}
+    if(chance(.6)){const i=.35;lanternRow(D,cx+x0*(1-i/hx),fy+fh-1.5,cz+z0*(1-i/hz),cx+x1*(1-i/hx),fy+fh-1.5,cz+z1*(1-i/hz),3,.6,RI(0,1))}
   }
-  roof(B.roof,cx,fy+5.9,cz,w,d,w+dep*2+3.5,d+dep*2+3.5,1.9,T.rc,1.1,2);
+  roof(B.roof,cx,fy+fh-1.1,cz,w,d,w+dep*2+3.5,d+dep*2+3.5,1.9,T.rc,1.1,2);
   for(let side=0;side<4;side++){const len=side<2?d:w,dist=(side<2?w:d)/2,[nx,nz]=NRM[side];
     balconyProps(D,T,cx,cz,side,dist,fy,dep,len*.92,0);
-    T.balconies.push({x:cx+nx*(dist+dep/2),z:cz+nz*(dist+dep/2),fy,side,s:0,dist,dep,bw:len,cx,cz,T,used:false})}
+    rec(T,{lx:cx+nx*(dist+dep/2),lz:cz+nz*(dist+dep/2),fy,side,s:0,dist,dep,bw:len,cx,cz})}
 }
 // a big deck cantilevered out on raking struts: garden, market or a little house standing on it
 function terrace(B,T,cx,cz,side,len,dist,fy,allowHouse){
@@ -759,117 +845,153 @@ function terrace(B,T,cx,cz,side,len,dist,fy,allowHouse){
   for(const c of[c0,c1]){D.wood.box(c[0],fy+2.6,c[1],.22,4.4,.22,DARK);lantern(D,c[0],fy+5.2,c[1],1,LCOL(),2)}
   if(chance(.75))lanternRow(D,c0[0],fy+4.7,c0[1],c1[0],fy+4.7,c1[1],2.6,1.1,RI(0,1));
   if(chance(.4))for(let a=-bw/2+2;a<bw/2-2;a+=R(3.5,6)){const p=P(a);D.wood.box(p[0],fy+4,p[1],.16,7.6,.16,DARK);banner(D,cx,cz,side,dist+dep-.45,s+a+.85,1.4,fy+1.6,5.6,RI(0,GENERAL.length-1),1.4)}
-  if(chance(.5))for(let i=RI(3,8);i>0;i--){const Lh=R(1.5,6);panel(D.cloth,cx,cz,side,dist+dep+.14,s+R(-.48,.48)*bw,R(.7,1.6),fy+.15-Lh,Lh,pick(GREENS),0,1,1,0)}
-  terraces.push({p:new V3(cx+nx*(dist+dep)+tx*s,fy+.4,cz+nz*(dist+dep)+tz*s),T,nx,nz,n:0});
-  T.balconies.push({x:px,z:pz,fy,side,s,dist,dep,bw,cx,cz,T,used:false});
+  if(chance(.6))for(let i=RI(2,4);i>0;i--)vine(D,cx,cz,side,dist+dep+.15,s+R(-.42,.42)*bw,fy+.2,R(3.5,6),true);
+  else if(chance(.4))for(let i=RI(3,6);i>0;i--){const Lh=R(1.5,6);panel(D.cloth,cx,cz,side,dist+dep+.14,s+R(-.48,.48)*bw,R(.7,1.6),fy+.15-Lh,Lh,pick(GREENS),0,1,1,0)}
+  const wp=xfP(cx+nx*(dist+dep)+tx*s,cz+nz*(dist+dep)+tz*s),wn=xfD(nx,nz);
+  terraces.push({p:new V3(wp[0],fy+.4,wp[1]),T,nx:wn[0],nz:wn[1],n:0});
+  rec(T,{lx:px,lz:pz,fy,side,s,dist,dep,bw,cx,cz});
 }
 // a room hung off the side of the tower on struts
 function sideHouse(B,T,cx,cz,side,y,h,w,d){
-  const len=side<2?d:w,dist=(side<2?w:d)/2,[nx,nz]=NRM[side],tx=nz,tz=-nx,X=side<2,floors=Math.round(h/7);
+  const len=side<2?d:w,dist=(side<2?w:d)/2,[nx,nz]=NRM[side],tx=nz,tz=-nx,X=side<2,floors=Math.max(1,Math.round(h/7));
   const mw=Math.min(len,R(9,15)),st=floors>=2&&chance(.35)?2:1,mh=st*7,md=R(7,11),my=y+RI(0,floors-st)*7,s=R(-(len-mw)/2,(len-mw)/2);
   const px=cx+nx*(dist+md/2-.5)+tx*s,pz=cz+nz*(dist+md/2-.5)+tz*s,sx=X?md:mw,sz=X?mw:md;
   B.wood.box(px,my+mh/2,pz,sx,mh,sz,pick(WOODS));addCol(px,my+mh/2,pz,sx,mh,sz);
   for(let f=0;f<st;f++){const fy=my+f*7;B.wood.box(px,fy+.2,pz,sx+.8,.5,sz+.8,DARK);
     let u=facUV(chance(.5)?SHOP():RES());panel(B.fac,cx,cz,side,dist+md-.3,s,Math.min(mw-1,9.6),fy+.62,6.2,chance(.8)?LITC:UNLIT,u[0],u[1],u[2],u[3]);
     for(const fl of X?[2,3]:[0,1]){u=facUV(RES());panel(B.fac,px,pz,fl,mw/2+.15,0,Math.min(md-.8,9.6),fy+.62,6.2,chance(.7)?LITC:UNLIT,u[0],u[1],u[2],u[3])}}
-  if(chance(.5))roofGable(B,px,my+mh-.3,pz,sx,sz,3.4,T.rc);else roof(B.roof,px,my+mh-.4,pz,Math.max(.3,sx-sz),Math.max(.3,sz-sx),sx+5,sz+5,3.6,T.rc,1,3);
+  const rk=rand();
+  if(rk<.35)roofGable(B,px,my+mh-.3,pz,sx,sz,3.4,T.rc);
+  else if(rk<.6)irimoya(B,px,my+mh-.4,pz,sx,sz,5.2,T.rc);
+  else roof(B.roof,px,my+mh-.4,pz,Math.max(.3,sx-sz),Math.max(.3,sz-sx),sx+5,sz+5,3.6,T.rc,1,3);
+  if(chance(.35))karahafu(B,cx,cz,side,dist+md-.3,s,my+mh-1.6,Math.min(mw-1.5,8),2.4,1.5,T.rc);
   const q=new THREE.Quaternion().setFromUnitVectors(UP,new V3(nx,1,nz).normalize());
   for(const e of[-1,1])B.wood.box(cx+nx*(dist+md*.45)+tx*(s+e*mw*.35),my-md*.45,cz+nz*(dist+md*.45)+tz*(s+e*mw*.35),.5,md*1.3,.5,DARK,q);
   const a=[cx+nx*(dist+md+.7)+tx*(s-mw/2),cz+nz*(dist+md+.7)+tz*(s-mw/2)],b=[cx+nx*(dist+md+.7)+tx*(s+mw/2),cz+nz*(dist+md+.7)+tz*(s+mw/2)];
   if(chance(.7))lanternRow(B.D,a[0],my+mh-1.4,a[1],b[0],my+mh-1.4,b[1],2.4,.4,RI(0,1));else lantern(B.D,b[0],my+mh-2.2,b[1],1.4,LCOL(),RI(0,1));
   if(chance(.5))banner(B.D,cx,cz,side,dist+md,s-mw*.3,2.2,my-7.5,7.5,RI(0,GENERAL.length-1));
+  if(chance(.35))hangChain(B.D,b[0],my-.2,b[1],RI(2,4),1);
 }
 // an outside stair climbing one storey along the wall
-function stairs(B,cx,cz,side,w,d,fy){
+function stairs(B,cx,cz,side,w,d,fy,fh){
   const len=side<2?d:w,dist=(side<2?w:d)/2,[nx,nz]=NRM[side],tx=nz,tz=-nx,X=side<2,run=Math.min(9,len-5);if(run<5)return;
-  const a0=R(-len/2+1.5,len/2-run-1.5),dv=new V3(tx*run,7,tz*run),L=dv.length(),q=new THREE.Quaternion().setFromUnitVectors(UP,dv.normalize());
+  const a0=R(-len/2+1.5,len/2-run-1.5),dv=new V3(tx*run,fh,tz*run),L=dv.length(),q=new THREE.Quaternion().setFromUnitVectors(UP,dv.normalize());
   const mx=cx+nx*(dist+1.1)+tx*(a0+run/2),mz=cz+nz*(dist+1.1)+tz*(a0+run/2);
-  B.wood.box(mx,fy+3.7,mz,X?1.6:.3,L,X?.3:1.6,PLANK,q);B.wood.box(mx+nx*.8,fy+5,mz+nz*.8,.16,L,.16,DARK,q);
-  for(const e of[0,1]){const a=a0+e*run+(e?1.1:-1.1);B.wood.box(cx+nx*(dist+1.2)+tx*a,fy+.25+e*7,cz+nz*(dist+1.2)+tz*a,2.4,.3,2.4,PLANK)}
+  B.wood.box(mx,fy+fh/2+.2,mz,X?1.6:.3,L,X?.3:1.6,PLANK,q);B.wood.box(mx+nx*.8,fy+fh/2+1.5,mz+nz*.8,.16,L,.16,DARK,q);
+  for(const e of[0,1]){const a=a0+e*run+(e?1.1:-1.1);B.wood.box(cx+nx*(dist+1.2)+tx*a,fy+.25+e*fh,cz+nz*(dist+1.2)+tz*a,2.4,.3,2.4,PLANK)}
 }
-function bays(B,T,cx,cz,side,len,dist,fy,plain,ground){
-  const [nx,nz]=NRM[side],tx=nz,tz=-nx,np=Math.max(1,Math.round(len/8)),pw=len/np,P=(dd,a)=>[cx+nx*dd+tx*a,cz+nz*dd+tz*a];
+function bays(B,T,cx,cz,side,len,dist,fy,plain,ground,fh){
+  const [nx,nz]=NRM[side],tx=nz,tz=-nx,ph=fh-.8,np=Math.max(1,Math.round(len/(fh*1.15))),pw=len/np,P=(dd,a)=>[cx+nx*dd+tx*a,cz+nz*dd+tz*a];
   for(let i=0;i<np;i++)if(chance(.86)){
-    const sa=-len/2+pw*(i+.5),bw=Math.min(pw-.8,9.6),u=facUV(ground?(chance(.65)?STREET():SHOP()):(T.type==='com'&&chance(.55)?SHOP():RES()));
-    panel(B.fac,cx,cz,side,dist+.2,sa,bw,fy+.62,6.2,chance(.72)?LITC:UNLIT,u[0],u[1],u[2],u[3]);
+    const sa=-len/2+pw*(i+.5),bw=Math.min(pw-.8,ph*1.55),u=facUV(ground?(chance(.65)?STREET():SHOP()):(T.type==='com'&&chance(.55)?SHOP():RES()));
+    panel(B.fac,cx,cz,side,dist+.2,sa,bw,fy+.62,ph,chance(.72)?LITC:UNLIT,u[0],u[1],u[2],u[3]);
     if(plain)continue;
     if(chance(.28)){const a=P(dist+2,sa-bw/2),b=P(dist+2,sa+bw/2),c=P(dist+.1,sa+bw/2),e=P(dist+.1,sa-bw/2);
-      B.roof.quad([a[0],fy+6.05,a[1]],[b[0],fy+6.05,b[1]],[c[0],fy+6.85,c[1]],[e[0],fy+6.85,e[1]],T.rc,0,0,Math.round(bw/2.5),1)}
+      B.roof.quad([a[0],fy+fh-.95,a[1]],[b[0],fy+fh-.95,b[1]],[c[0],fy+fh-.15,c[1]],[e[0],fy+fh-.15,e[1]],T.rc,0,0,Math.round(bw/2.5),1)}
     if(chance(.3)){const q=P(dist+.45,sa);B.wood.box(q[0],fy+.75,q[1],side<2?.8:bw-.6,.22,side<2?bw-.6:.8,PLANK)}
+    if(!ground&&chance(.06))vine(B,cx,cz,side,dist+.32,sa+R(-2,2),fy+.4,R(5,8),false);   // ivy climbing the wall
   }
 }
-// street-level shop front: awning, lanterns and clutter on the pavement
+// street-level shop front: awning, lanterns, a curved entrance gable now and then, and clutter on the pavement
 function shopfront(B,T,cx,cz,side,len,dist,y){
   const D=B.D,[nx,nz]=NRM[side],tx=nz,tz=-nx,P=(dd,a)=>[cx+nx*dd+tx*a,cz+nz*dd+tz*a];
   if(chance(.85)){const a=P(dist+2.6,-len/2),b=P(dist+2.6,len/2),c=P(dist+.2,len/2),e=P(dist+.2,-len/2);
     D.cloth.quad([a[0],y+4.9,a[1]],[b[0],y+4.9,b[1]],[c[0],y+5.9,c[1]],[e[0],y+5.9,e[1]],pick(AWN),0,.3,1,0)}
   if(chance(.65)){const a=P(dist+2.3,-len/2+.5),b=P(dist+2.3,len/2-.5);lanternRow(D,a[0],y+4.8,a[1],b[0],y+4.8,b[1],2.8,.3,RI(0,1))}
+  if(chance(.3))karahafu(B,cx,cz,side,dist+.2,R(-.25,.25)*len,y+6.1,Math.min(8,len*.4),3.4,1.7,T.rc);
   const a0=P(dist+1.2,-len/2+1),a1=P(dist+3.6,len/2-1);
   furnish(D,Math.min(a0[0],a1[0]),Math.min(a0[1],a1[1]),Math.max(a0[0],a1[0]),Math.max(a0[1],a1[1]),y,RI(2,5),false);
 }
+// set XF for a block: the tower's own angle plus a small twist of this block about its centre (scx,scz in tower coordinates)
+function segXF(T,scx,scz,tw){
+  const ct=Math.cos(T.yaw),st=Math.sin(T.yaw),cd=Math.cos(tw),sd=Math.sin(tw),ox=scx-(cd*scx-sd*scz),oz=scz-(sd*scx+cd*scz),a=T.yaw+tw;
+  XF={c:Math.cos(a),s:Math.sin(a),x:T.x+ct*ox-st*oz,z:T.z+st*ox+ct*oz};
+}
 function genTower(T,B){
-  const fh=7,mid=!!T.mid;let cx=T.x,cz=T.z,w=T.w*(mid?1:1.2),d=T.d*(mid?1:1.2),y=1.2,seg=0,bandY=0;const segs=[];
+  const mid=!!T.mid;if(T.yaw==null)T.yaw=R(0,6.283);
+  let cx=0,cz=0,w=T.w*(mid?1:1.2),d=T.d*(mid?1:1.2),y=1.2,seg=0,bandY=0,tw=0,fh=7,neck=false,prev=null;const segs=[];
   if(mid)newBand(B);
+  segXF(T,0,0,0);
   const pad=mid?8:20;
   B.wood.box(cx,.6,cz,w+pad,1.2,d+pad,STONE);B.wood.box(cx,.2,cz,w+pad+7,.4,d+pad+7,STONE);addCol(cx,.6,cz,w+pad,1.2,d+pad);
   {const a=pad/2;for(const [x0,z0,x1,z1] of[[cx-w/2-a,cz+d/2+3.8,cx+w/2+a,cz+d/2+a],[cx-w/2-a,cz-d/2-a,cx+w/2+a,cz-d/2-3.8],[cx+w/2+3.8,cz-d/2,cx+w/2+a,cz+d/2],[cx-w/2-a,cz-d/2,cx-w/2-3.8,cz+d/2]])
     if(x1>x0&&z1>z0)furnish(B.D,x0,z0,x1,z1,1.2,mid?RI(1,3):RI(5,10),!mid)}
   while(y<T.h-1){
-    const floors=clamp(Math.min(RI(2,5),Math.round((T.h-y)/fh)),1,5),h=floors*fh;
-    if(seg>0){
-      const ow=w,od=d,ox=cx,oz=cz;
-      cx+=R(-5,5);cz+=R(-5,5);w=clamp(w+R(-12,12),T.w*.62,T.w*1.4);d=clamp(d+R(-12,12),T.d*.62,T.d*1.4);
-      if((w<ow-5||d<od-5)&&chance(.75)){ // the block steps back: the roof below becomes a terrace garden
-        roof(B.roof,ox,y-2.3,oz,ow,od,ow+9,od+9,2.2,T.rc,1.2,2);deck(B,ox,y-.2,oz,ow+3,od+3);
-        for(const [x0,z0,x1,z1] of[[cx+w/2+1,oz-od/2,ox+ow/2+1,oz+od/2],[ox-ow/2-1,oz-od/2,cx-w/2-1,oz+od/2],[ox-ow/2,cz+d/2+1,ox+ow/2,oz+od/2+1],[ox-ow/2,oz-od/2-1,ox+ow/2,cz-d/2-1]])
-          if(x1-x0>3&&z1-z0>3)furnish(B.D,x0+.8,z0+.8,x1-.8,z1-.8,y+.2,RI(3,8),Math.min(x1-x0,z1-z0)>6);
-        if(chance(.6)){const a=[ox-ow/2-1,oz+od/2+1],b=[ox+ow/2+1,oz+od/2+1];lanternRow(B.D,a[0],y+3,a[1],b[0],y+3,b[1],3,1.2,RI(0,1))}
-      }else roof(B.roof,ox,y-1.6,oz,ow,od,ow+13,od+13,3.6,T.rc,2,3);
-    }
+    segXF(T,cx,cz,tw);
+    const floors=clamp(Math.min(neck?RI(1,2):RI(2,5),Math.round((T.h-y)/fh)),1,5),h=floors*fh;
     B.wood.box(cx,y+h/2,cz,w,h,d,pick(WOODS));addCol(cx,y+h/2,cz,w,h,d);
     for(const a of[-1,1])for(const b of[-1,1])B.wood.box(cx+a*w/2,y+h/2,cz+b*d/2,1,h,1,DARK);
-    const ms=chance(mid?.35:.7)?RI(0,3):-1,ms2=!mid&&chance(.35)?RI(0,3):-1;
-    const open=[0,1,2,3].filter(s=>s!==ms&&s!==ms2).sort(()=>rand()-.5),nT=mid?(chance(.55)?1:0):(chance(.92)?(chance(.55)?2:1):0),plan=[];
+    if(prev&&prev.neck)for(const a of[-1,1])for(const b of[-1,1]){   // struts carry the broad platform out over the neck below
+      const p0=new V3(prev.cx+a*prev.w/2,y-Math.min(9,prev.h-1),prev.cz+b*prev.d/2),p1=new V3(cx+a*w*.44,y,cz+b*d*.44),dv=p1.clone().sub(p0),L=dv.length();
+      B.wood.box((p0.x+p1.x)/2,(p0.y+p1.y)/2,(p0.z+p1.z)/2,.7,L,.7,DARK,new THREE.Quaternion().setFromUnitVectors(UP,dv.normalize()))}
+    const ms=!neck&&chance(mid?.35:.7)?RI(0,3):-1,ms2=!mid&&!neck&&chance(.35)?RI(0,3):-1;
+    const open=[0,1,2,3].filter(s=>s!==ms&&s!==ms2).sort(()=>rand()-.5),nT=neck?0:mid?(chance(.55)?1:0):(chance(.92)?(chance(.55)?2:1):0),plan=[];
     for(let k=0;k<nT&&k<open.length;k++){if(seg===0&&floors<2)break;plan.push({side:open[k],f:RI(seg>0?0:1,floors-1)})}
     const flagSides=open.filter(s=>!plan.some(p=>p.side===s));
     for(let f=0;f<floors;f++){
-      const fy=y+f*fh,up=seg>0||f>0,ground=!up,ver=up&&!plan.some(p=>p.f===f)&&chance(mid?.3:.38);
+      const fy=y+f*fh,up=seg>0||f>0,ground=!up,ver=up&&!plan.some(p=>p.f===f)&&chance(neck?.6:mid?.3:.38);
       B.wood.box(cx,fy+.3,cz,w+1,.6,d+1,DARK);
-      if(ver)veranda(B,T,cx,cz,w,d,fy);
+      if(ver)veranda(B,T,cx,cz,w,d,fy,fh);
       else if(f>0&&chance(.3))roof(B.roof,cx,fy-.9,cz,w,d,w+6,d+6,1.9,T.rc,.9,2);
       for(let side=0;side<4;side++){
         const len=side<2?d:w,dist=(side<2?w:d)/2,[nx,nz]=NRM[side],tx=nz,tz=-nx,free=up&&!ver&&side!==ms&&side!==ms2,tp=plan.find(p=>p.side===side&&p.f===f);
-        bays(B,T,cx,cz,side,len,dist,fy,ver,ground);
+        bays(B,T,cx,cz,side,len,dist,fy,ver,ground,fh);
         if(ground)shopfront(B,T,cx,cz,side,len,dist,fy);
         if(free&&tp)terrace(B,T,cx,cz,side,len,dist,fy,f<floors-1);
         else if(free&&chance(.88))balcony(B,T,cx,cz,side,len,dist,fy);
         if(f===0&&chance(.45)){const a=(chance(.5)?1:-1)*(len/2-1.6);B.wood.box(cx+nx*(dist+.45)+tx*a,y+h/2,cz+nz*(dist+.45)+tz*a,.36,h,.36,PIPE)}
         if(f===floors-1&&!ver&&chance(T.type==='com'?.5:.25)){const a=[cx+nx*(dist+2.7)-tx*len/2,cz+nz*(dist+2.7)-tz*len/2],b=[cx+nx*(dist+2.7)+tx*len/2,cz+nz*(dist+2.7)+tz*len/2];
-          lanternRow(B.D,a[0],fy+6.3,a[1],b[0],fy+6.3,b[1],3,.5,RI(0,1))}
+          lanternRow(B.D,a[0],fy+fh-.7,a[1],b[0],fy+fh-.7,b[1],3,.5,RI(0,1))}
       }
     }
     if(ms>=0)sideHouse(B,T,cx,cz,ms,y,h,w,d);
     if(ms2>=0&&ms2!==ms)sideHouse(B,T,cx,cz,ms2,y,h,w,d);
-    if(chance(.35))stairs(B,cx,cz,RI(0,3),w,d,y+RI(0,floors-1)*fh);
+    if(chance(.35))stairs(B,cx,cz,RI(0,3),w,d,y+RI(0,floors-1)*fh,fh);
     if(chance(.55)){const side=flagSides.length?pick(flagSides):RI(0,3),len=side<2?d:w,dist=(side<2?w:d)/2,bh=Math.min(h-2,R(10,22));
       if(bh>5)banner(B,cx,cz,side,dist+.7,R(-.35,.35)*len,bh/3.6,y+h-1.5-bh,bh,RI(0,GENERAL.length-1),1.2)}
     if(flagSides.length&&chance(T.type==='com'?.6:.35))for(let k=RI(1,2);k>0;k--){
       const side=pick(flagSides),len=side<2?d:w,dist=(side<2?w:d)/2,ytop=y+h-1.2,fl=Math.min(R(18,32),ytop-4);
       if(fl>=12)bigFlag(B,cx,cz,side,dist,R(-.42,.42)*len,ytop,fl,chance(.4)?T.cell:RI(0,GENERAL.length-1))}
-    segs.push({cx,cz,w,d,y,h});y+=h;seg++;
+    if(flagSides.length&&chance(T.type==='com'?.6:.3))for(let k=RI(1,3);k>0;k--){   // signboards hung on chains
+      const side=pick(flagSides),len=side<2?d:w,dist=(side<2?w:d)/2,f=RI(seg>0?0:1,floors-1);
+      if(f<floors)hangSign(B,cx,cz,side,dist,R(-.4,.4)*len,y+f*fh+fh-.6,RI(0,GENERAL.length-1))}
+    segs.push({cx,cz,w,d,y,h,xf:XF});y+=h;seg++;
+    if(y<T.h-1){
+      // the next block: shifted, a new width, often a slight twist, its own storey height; now and then a slender neck that flares into a broad platform
+      const ow=w,od=d,ox=cx,oz=cz;prev={cx,cz,w,d,h,neck};
+      const wasNeck=neck;neck=!mid&&!wasNeck&&seg>1&&y<T.h-60&&chance(.14);
+      if(neck){w=T.w*R(.42,.55);d=T.d*R(.42,.55)}
+      else if(wasNeck){w=T.w*R(1.15,1.45);d=T.d*R(1.15,1.45)}
+      else{cx+=R(-5,5);cz+=R(-5,5);w=clamp(w+R(-14,14),T.w*.6,T.w*1.4);d=clamp(d+R(-14,14),T.d*.6,T.d*1.4)}
+      if((w<ow-5||d<od-5)&&chance(.75)){ // the block steps back: the roof below becomes a terrace garden
+        roof(B.roof,ox,y-2.3,oz,ow,od,ow+9,od+9,2.2,T.rc,1.2,2);deck(B,ox,y-.2,oz,ow+3,od+3);
+        for(const [x0,z0,x1,z1] of[[cx+w/2+1,oz-od/2,ox+ow/2+1,oz+od/2],[ox-ow/2-1,oz-od/2,cx-w/2-1,oz+od/2],[ox-ow/2,cz+d/2+1,ox+ow/2,oz+od/2+1],[ox-ow/2,oz-od/2-1,ox+ow/2,cz-d/2-1]])
+          if(x1-x0>3&&z1-z0>3)furnish(B.D,x0+.8,z0+.8,x1-.8,z1-.8,y+.2,RI(3,8),Math.min(x1-x0,z1-z0)>6);
+        if(chance(.6)){const a=[ox-ow/2-1,oz+od/2+1],b=[ox+ow/2+1,oz+od/2+1];lanternRow(B.D,a[0],y+3,a[1],b[0],y+3,b[1],3,1.2,RI(0,1))}
+      }else{
+        roof(B.roof,ox,y-1.6,oz,ow,od,ow+13,od+13,3.6,T.rc,2,3);rafters(B.D,ox,oz,ow,od,y-1.85,6.2);
+        for(const a of[-1,1])for(const b of[-1,1])if(chance(.4))hangChain(B.D,ox+a*(ow/2+5.6),y-.3,oz+b*(od/2+5.6),RI(3,6),chance(.5)?1:0);
+      }
+      tw+=chance(.55)?R(-.16,.16):0;
+      fh=neck?7:pick([6.4,7,7,7,7.6,8.4,9.4]);
+    }
     if(y-bandY>84){newBand(B);bandY=y}
   }
-  // crown: roof garden, great gable, or pagoda
+  // crown: roof garden, great gable, hip-and-gable, curved gable, or pagoda
   const ct=rand();
-  if(ct<(mid?.42:.28)){
+  if(ct<(mid?.36:.24)){
     roof(B.roof,cx,y-2.3,cz,w,d,w+9,d+9,2.2,T.rc,1.2,2);deck(B,cx,y-.2,cz,w+3,d+3);
     house(B,cx+R(-3,3),y+.2,cz+R(-3,3),9.6,9.6,1,T.rc,false,true);
     furnish(B.D,cx-w/2,cz-d/2,cx+w/2,cz+d/2,y+.2,RI(10,18),true);
     B.wood.at(barrelG,cx+w/2-3.5,y+2.4,cz-d/2+3.5,5,4,5,pick(WOODS));
     if(chance(.7)){const a=[cx-w/2-1,cz-d/2-1],b=[cx+w/2+1,cz+d/2+1];lanternRow(B.D,a[0],y+4.6,a[1],b[0],y+4.6,b[1],3,1.4,RI(0,1))}
     T.top=y+12;
-  }else if(ct<(mid?.78:.52)){
+  }else if(ct<(mid?.58:.42)){
     roof(B.roof,cx,y-1.6,cz,w,d,w+13,d+13,3.6,T.rc,2,3);roofGable(B,cx,y+1.4,cz,w+3,d+3,mid?8:13,T.rc,3.5);addCol(cx,y+4,cz,w*.6,8,d*.6);T.top=y+15;
+  }else if(ct<(mid?.84:.62)){
+    irimoya(B,cx,y-.6,cz,w,d,mid?11:16,T.rc);addCol(cx,y+4,cz,w*.6,8,d*.6);
+    for(const side of[0,1,2,3])if(chance(.35))karahafu(B,cx,cz,side,(side<2?w:d)/2+.2,0,y-2.4,Math.min(10,(side<2?d:w)*.45),3.4,2,T.rc);
+    T.top=y+16;
   }else{
     roof(B.roof,cx,y-1.6,cz,w,d,w+13,d+13,3.6,T.rc,2,3);
     if(!mid&&chance(.6)){roof(B.roof,cx,y-.5,cz,w*.55,d*.55,w+11,d+11,6,T.rc,2.4,4);
@@ -879,28 +1001,29 @@ function genTower(T,B){
     roof(B.roof,cx,y-.5,cz,Math.max(.3,(w-d)*.5),Math.max(.3,(d-w)*.5),w*.6+12,d*.6+12,mid?7:11,T.rc,2.6,5);addCol(cx,y+2.5,cz,w*.6,6,d*.6);
     B.wood.box(cx,y+13,cz,.6,8,.6,DARK);B.glow.at(ico0,cx,y+17.5,cz,.9,.9,.9,C('#f0c85a'));T.top=y+11;
   }
-  // big name signs
-  for(let k=0;k<(mid?1:3);k++){const sg=segs[Math.floor(segs.length*(.25+.25*k))],side=(T.cell+k)%4,dist=(side<2?sg.w:sg.d)/2,bh=Math.min(20,sg.h-1);
+  // big name signs, each in the frame of the block it hangs on
+  for(let k=0;k<(mid?1:3);k++){const sg=segs[Math.floor(segs.length*(.25+.25*k))],side=(T.cell+k)%4,dist=(side<2?sg.w:sg.d)/2,bh=Math.min(20,sg.h-1);XF=sg.xf;
     banner(B,sg.cx,sg.cz,side,dist+.9,0,bh/4,sg.y+sg.h-.5-bh,bh,T.cell,.6);
     const [nx,nz]=NRM[side];B.wood.box(sg.cx+nx*(dist+.5),sg.y+sg.h-.3,sg.cz+nz*(dist+.5),side<2?1.4:bh/4+1,.4,side<2?bh/4+1:1.4,DARK)}
   // delivery doors
   const u=cellUV(T.cell),cand=T.balconies.filter(b=>b.bw>=7&&b.fy>20).sort(()=>rand()-.5),doors=[];
-  for(const b of cand){if(doors.length>=(mid?1:3))break;if(doors.some(o=>Math.abs(o.fy-b.fy)<45))continue;doors.push(b);b.used=true;
+  for(const b of cand){if(doors.length>=(mid?1:3))break;if(doors.some(o=>Math.abs(o.fy-b.fy)<45))continue;doors.push(b);b.used=true;XF=b.xf;
     const [nx,nz]=NRM[b.side],tx=nz,tz=-nx;
     panel(B.flat,b.cx,b.cz,b.side,b.dist+.3,b.s,3,b.fy+.4,4.8,C('#2a1c16'));
     panel(B.glow,b.cx,b.cz,b.side,b.dist+.36,b.s+.5,1.6,b.fy+.4,4.6,C('#ffc978'));
     panel(B.flat,b.cx,b.cz,b.side,b.dist+.45,b.s,3.4,b.fy+4.1,1.3,INDIGO);
     panel(B.ban,b.cx,b.cz,b.side,b.dist+.4,b.s-2.6,1.4,b.fy+.6,5.6,C('#000'),u[0],u[1],u[2],u[3]);
-    const o=b.dist+b.dep+4.5;
-    allDoors.push({pos:new V3(b.cx+nx*o+tx*b.s,b.fy+2.6,b.cz+nz*o+tz*b.s),T,floor:Math.round(b.fy/fh)+1,nx,nz});
+    const o=b.dist+b.dep+4.5,wp=xfP(b.cx+nx*o+tx*b.s,b.cz+nz*o+tz*b.s),wn=xfD(nx,nz);
+    allDoors.push({pos:new V3(wp[0],b.fy+2.6,wp[1]),T,floor:Math.round(b.fy/7)+1,nx:wn[0],nz:wn[1]});
   }
+  XF=null;
   for(const b of T.balconies)if(!b.used&&b.bw>5&&b.fy>20)allBalconies.push(b);
 }
 // tower placement
 {let tries=0;
  while(towers.length<NTOWER&&tries++<20000){
-  const first=towers.length===0,a=R(0,6.283),r=first?0:Math.sqrt(rand())*540,x=Math.cos(a)*r,z=Math.sin(a)*r;
-  if(towers.some(t=>Math.hypot(t.x-x,t.z-z)<(tries>12000?88:102)))continue;
+  const first=towers.length===0,a=R(0,6.283),r=first?0:Math.sqrt(rand())*560,x=Math.cos(a)*r,z=Math.sin(a)*r;
+  if(towers.some(t=>Math.hypot(t.x-x,t.z-z)<(tries>12000?92:108)))continue;
   towers.push({x,z,w:R(24,40),d:R(24,40),h:first?430:R(240,720),type:r<260?'com':'res',rc:pick(ROOFS),name:towerNames[towers.length],cell:GENERAL.length+towers.length,balconies:[]});
  }
  for(const T of towers){const B=bufs2();genTower(T,B);addBufs(B);addDetail(B)}
@@ -914,14 +1037,14 @@ const tb=(x,z)=>{const k=Math.floor((x+1200)/480)+','+Math.floor((z+1200)/480);r
  while(mids.length<NMID&&tries++<9000){
   const a=R(0,6.283),r=R(40,TOWN_R-60),x=Math.cos(a)*r,z=Math.sin(a)*r,w=R(16,26),d=R(16,26);
   if(Math.abs(z-CANAL*LOT)<d*.5+24)continue;
-  if(towers.some(t=>Math.abs(t.x-x)<t.w*.7+w*.5+34&&Math.abs(t.z-z)<t.d*.7+d*.5+34))continue;
-  if(mids.some(m=>Math.abs(m.x-x)<(m.w+w)*.5+30&&Math.abs(m.z-z)<(m.d+d)*.5+30))continue;
+  if(towers.some(t=>Math.hypot(t.x-x,t.z-z)<Math.max(t.w,t.d)+15+Math.max(w,d)+40))continue;
+  if(mids.some(m=>Math.hypot(m.x-x,m.z-z)<Math.max(m.w,m.d)+Math.max(w,d)+34))continue;
   mids.push({x,z,w,d,h:RI(3,10)*7,type:r<320||chance(.3)?'com':'res',rc:pick(ROOFS),name:towerNames[NTOWER+mids.length],cell:GENERAL.length+NTOWER+mids.length,balconies:[],mid:true});
  }
  for(const T of mids)genTower(T,tb(T.x,T.z));
 }
 {
-  const blocked=(x,z)=>towers.some(t=>Math.abs(t.x-x)<t.w*.6+32&&Math.abs(t.z-z)<t.d*.6+32)||mids.some(m=>Math.abs(m.x-x)<m.w*.5+30&&Math.abs(m.z-z)<m.d*.5+30);
+  const blocked=(x,z)=>towers.some(t=>Math.hypot(t.x-x,t.z-z)<Math.max(t.w,t.d)+48)||mids.some(m=>Math.hypot(m.x-x,m.z-z)<Math.max(m.w,m.d)+36);
   for(let gx=-23;gx<=23;gx++)for(let gz=-23;gz<=23;gz++){
     const lx=gx*LOT,lz=gz*LOT,r=Math.hypot(lx,lz);if(r>TOWN_R+R(-50,30))continue;
     const B=tb(lx,lz),D=B.D;
@@ -1040,14 +1163,19 @@ const S=newBufs();
       if(Math.hypot(x+1500,z+1500)<760)continue;   // leave room round the world tree
       if(placed.some(p=>Math.hypot(p[0]-x,p[1]-z)<p[2]+w1*.9))continue;
       let w=R(w0,w1),y=0;const H=R(h0,h1),rc=pick(ROOFS),step=7*fs;placed.push([x,z,w]);made++;
-      while(y<H){const h=RI(3,7)*7*Math.max(1,fs-.5);w=clamp(w+R(-8,8)*fs,w0*.8,w1*1.1);S.wood.box(x,y+h/2,z,w,h,w,pick(WOODS));addCol(x,y+h/2,z,w,h,w);
+      const yaw=R(0,6.283);XF={c:Math.cos(yaw),s:Math.sin(yaw),x,z};   // each one at its own angle, built around its own centre
+      let tw=0;
+      while(y<H){const h=RI(3,7)*7*Math.max(1,fs-.5);w=clamp(w+R(-8,8)*fs,w0*.8,w1*1.1);
+        if(chance(.5)){tw+=R(-.15,.15);XF={c:Math.cos(yaw+tw),s:Math.sin(yaw+tw),x,z}}
+        S.wood.box(0,y+h/2,0,w,h,w,pick(WOODS));addCol(0,y+h/2,0,w,h,w);
         {const np=Math.max(2,Math.round(w/(9*Math.min(fs,2)))),pw=w/np;
           for(let side=0;side<4;side++)for(let fy=y+.4;fy<y+h-step+1;fy+=step)for(let k=0;k<np;k++)if(chance(.85)){
-            const u=facUV(RI(0,31));panel(S.fac,x,z,side,w/2+.25,-w/2+pw*(k+.5),pw-.6,fy,step-.7,chance(.7)?LITC:UNLIT,u[0],u[1],u[2],u[3])}}
-        if(chance(.55)){const side=RI(0,3),[nx,nz]=NRM[side],dp=R(8,14)*fs;S.wood.box(x+nx*(w/2+dp/2),y+7.2*fs,z+nz*(w/2+dp/2),side<2?dp:w*.8,.5*fs,side<2?w*.8:dp,PLANK)}
-        if(fs===1&&chance(.3)){const side=RI(0,3),[nx,nz]=NRM[side],tx=nz,tz=-nx,fl=R(16,28);if(y+h-fl>4){const o=R(-w/3,w/3),a2=[x+nx*(w/2+5)+tx*o,z+nz*(w/2+5)+tz*o];flagQuad(S,a2[0],a2[1],a2[0]+nx*fl/4,a2[1]+nz*fl/4,y+h-1-fl,y+h-1,RI(0,GENERAL.length-1),fl/7)}}
-        y+=h;roof(S.roof,x,y-1.2*fs,z,w,w,w+10*fs,w+10*fs,3*fs,rc,1.5*fs,2)}
-      roof(S.roof,x,y,z,.3,.3,w+12*fs,w+12*fs,12*fs,rc,2.6*fs,3);
+            const u=facUV(RI(0,31));panel(S.fac,0,0,side,w/2+.25,-w/2+pw*(k+.5),pw-.6,fy,step-.7,chance(.7)?LITC:UNLIT,u[0],u[1],u[2],u[3])}}
+        if(chance(.55)){const side=RI(0,3),[nx,nz]=NRM[side],dp=R(8,14)*fs;S.wood.box(nx*(w/2+dp/2),y+7.2*fs,nz*(w/2+dp/2),side<2?dp:w*.8,.5*fs,side<2?w*.8:dp,PLANK)}
+        if(fs===1&&chance(.3)){const side=RI(0,3),[nx,nz]=NRM[side],tx=nz,tz=-nx,fl=R(16,28);if(y+h-fl>4){const o=R(-w/3,w/3),a2=[nx*(w/2+5)+tx*o,nz*(w/2+5)+tz*o];flagQuad(S,a2[0],a2[1],a2[0]+nx*fl/4,a2[1]+nz*fl/4,y+h-1-fl,y+h-1,RI(0,GENERAL.length-1),fl/7)}}
+        y+=h;roof(S.roof,0,y-1.2*fs,0,w,w,w+10*fs,w+10*fs,3*fs,rc,1.5*fs,2)}
+      roof(S.roof,0,y,0,.3,.3,w+12*fs,w+12*fs,12*fs,rc,2.6*fs,3);
+      XF=null;
     }
   }
   const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(ropeP,3));
@@ -1117,6 +1245,7 @@ const cloudMesh=(()=>{
   const list=[];
   for(let i=0;i<110;i++){const a=R(0,6.283),r=R(150,1900);list.push([Math.cos(a)*r,R(230,720),Math.sin(a)*r,R(80,190),RI(0,3),rand()])}   // drifting among the towers
   for(let i=0;i<70;i++){const a=R(0,6.283),r=R(2600,6200);list.push([Math.cos(a)*r,R(80,480),Math.sin(a)*r,R(380,850),RI(0,3),rand()])}   // banks on the horizon
+  for(let i=0;i<150;i++){const a=R(0,6.283),r=R(60,1500);list.push([Math.cos(a)*r,R(28,150),Math.sin(a)*r,R(60,170),pick([1,1,1,3,2]),rand()])}   // low bands drifting between the towers, with gaps to see the streets through
   const n=list.length,g=new THREE.InstancedBufferGeometry(),pl=new THREE.PlaneGeometry(1,1);
   g.index=pl.index;g.setAttribute('position',pl.attributes.position);g.setAttribute('uv',pl.attributes.uv);
   const pa=new THREE.InstancedBufferAttribute(new Float32Array(n*3),3),da=new THREE.InstancedBufferAttribute(new Float32Array(n*4),4);
@@ -1214,6 +1343,22 @@ const player=new THREE.Group();player.rotation.order='YXZ';
 const pMesh=buildRider({kimono:C('#f1ebe0'),hakama:C('#b23a34'),obi:C('#3e5c8a'),hair:BLACK,ribbon:true,cat:true});pMesh.scale.setScalar(1.6);player.add(pMesh);
 const parcel=new THREE.Mesh(new THREE.BoxGeometry(.75,.6,.5),new THREE.MeshLambertMaterial({color:0x7a4e9a}));parcel.position.set(0,1.25,-.38);parcel.visible=false;player.add(parcel);
 scene.add(player);
+// the painted player: three views from behind on a card that faces the camera; once loaded, the 3D model only casts the shadow
+const PLS=512,plCv=document.createElement('canvas');plCv.width=PLS*3;plCv.height=PLS;const plg=plCv.getContext('2d');
+const plTex=new THREE.CanvasTexture(plCv);plTex.colorSpace=THREE.SRGBColorSpace;plTex.anisotropy=4;
+const plCard=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:plTex,alphaTest:.5,side:THREE.DoubleSide}));
+plCard.visible=false;plCard.frustumCulled=false;scene.add(plCard);
+let plView=-1;
+function putPlayer(i,im){const s=prepSprite(im);if(!s)return false;const sc=Math.min((PLS-8)/s.w,(PLS-8)/s.h),dw=s.w*sc,dh=s.h*sc;
+  plg.clearRect(i*PLS,0,PLS,PLS);plg.drawImage(s.cv,s.x0,s.y0,s.w,s.h,i*PLS+(PLS-dw)/2,(PLS-dh)/2,dw,dh);plTex.needsUpdate=true;return true}
+function usePlayerSprite(){plView=9;pMesh.layers.set(1);parcel.layers.set(1);sun.shadow.camera.layers.enable(1)}
+function updatePlayerCard(){
+  if(plView<0)return;plCard.visible=!photo&&player.visible!==false;if(!plCard.visible)return;
+  const v=P.roll<-.22?1:P.roll>.22?2:0;   // banking left / right
+  if(v!==plView){plView=v;const uv=plCard.geometry.attributes.uv;for(let i=0;i<4;i++)uv.setX(i,(v+(i%2))/3);uv.needsUpdate=true}
+  const s=3.7*ST.playerScale/1.6;plCard.scale.set(s,s,1);plCard.position.copy(player.position);plCard.position.y+=.55*s/3.7;
+  plCard.quaternion.copy(camera.quaternion);plCard.material.color.copy(spTint.value);
+}
 const npcs=[];
 // commuter network: doors (and tower plazas) joined wherever a straight flight is clear of buildings
 const nodes=allDoors.map(d=>d.pos).concat(towers.map(t=>new V3(t.x+t.w*.6+15,3.4,t.z)),towers.map(t=>new V3(t.x,3.4,t.z-t.d*.6-15)));
@@ -1327,6 +1472,9 @@ addEventListener('keydown',e=>{
   if(e.code==='KeyM'){muted=!muted;if(master)master.gain.value=muted?0:ST.volume;toast(muted?'靜音':'聲音開啟',1.2)}
   if(e.code==='KeyR'){goHome();toast('回到〈萬事屋〉',1.5)}
   if(e.code==='KeyH')setPhoto(!photo);
+  if(photo&&e.code==='Digit1'){P.pitch=-1.3;photoFov=84}    // looking straight down, wide
+  if(photo&&e.code==='Digit2'){P.pitch=.85;photoFov=76}     // looking up at the towers
+  if(photo&&e.code==='Digit3'){P.pitch=0;photoFov=null}     // level, normal lens
   if(e.code==='KeyP'){setS('quality',(ST.quality+2)%3);toast('畫質：'+['低（無後製、無陰影）','中（後製）','高（後製＋陰影）'][ST.quality],2)}
 });
 addEventListener('keyup',e=>{key[e.code]=false});
@@ -1357,6 +1505,8 @@ const SET=[
  {k:'contrast',l:'近景對比',min:0,max:2,step:.05,def:1,fmt:pct},
  {k:'ink',l:'墨線',min:0,max:1.5,step:.05,def:1,fmt:pct},
  {k:'sketch',l:'霧中線稿',min:0,max:2,step:.05,def:1,fmt:pct},
+ {k:'crease',l:'轉折描線',min:0,max:2,step:.05,def:1,fmt:pct},
+ {k:'depth',l:'立面深度',min:0,max:2.5,step:.05,def:1,fmt:pct},
  {k:'grain',l:'紙張質感',min:0,max:2.5,step:.05,def:1,fmt:pct},
  {k:'vignette',l:'暗角',min:0,max:2,step:.05,def:1,fmt:pct},
  {sec:'鏡頭與飛行　CAMERA'},
@@ -1377,7 +1527,7 @@ const saveS=()=>{try{localStorage.setItem('tengai-settings',JSON.stringify(ST))}
 function applyS(k){const v=ST[k];switch(k){
   case 'quality':quality=v;sun.castShadow=v===2;break;
   case 'bloom':postU.kBloom.value=v;break;case 'dream':postU.kDream.value=v;break;case 'shafts':postU.kShaft.value=v;break;
-  case 'dof':postU.kDof.value=v;break;case 'contrast':postU.kNear.value=v;break;case 'ink':postU.kInk.value=v;break;case 'sketch':postU.kSketch.value=v;break;
+  case 'dof':postU.kDof.value=v;break;case 'contrast':postU.kNear.value=v;break;case 'ink':postU.kInk.value=v;break;case 'sketch':postU.kSketch.value=v;break;case 'crease':postU.kCrease.value=v;break;case 'depth':facDepthU.value=v;break;
   case 'grain':postU.kGrain.value=v;$('paper').style.opacity=.3*Math.min(v,2);break;
   case 'vignette':$('vig').style.opacity=v;break;
   case 'petals':petals.material.opacity=v;petals.visible=v>0;break;
@@ -1398,8 +1548,9 @@ for(const d of SET){if(!d.k)continue;const inp=$('si_'+d.k);showS(d);
 $('setReset').onclick=()=>{for(const d of SET)if(d.def!=null)setS(d.k,d.def)};
 $('setClose').onclick=()=>togglePanel(false);
 // photo mode: only the scenery is left (H again to come back)
-let photo=false;
-function setPhoto(on){photo=on;document.body.classList.toggle('photo',on);player.visible=!on;if(on)togglePanel(false)}
+let photo=false,photoFov=null,hintT=0;
+function setPhoto(on){photo=on;photoFov=null;document.body.classList.toggle('photo',on);player.visible=!on;if(on)togglePanel(false);
+  const h=$('photoHint');h.style.opacity=on?1:0;clearTimeout(hintT);if(on)hintT=setTimeout(()=>h.style.opacity=0,3500)}
 $('setPhoto').onclick=()=>setPhoto(true);
 function togglePanel(open){open=open??!setPanel.classList.contains('open');setPanel.classList.toggle('open',open);if(open&&document.pointerLockElement)document.exitPointerLock()}
 $('menuBtn').onclick=()=>togglePanel();
@@ -1463,10 +1614,10 @@ function frame(now){
     const yi=((key.KeyA||key.ArrowLeft)?1:0)-((key.KeyD||key.ArrowRight)?1:0),pi=(key.ArrowUp?1:0)-(key.ArrowDown?1:0);
     P.yawVel=damp(P.yawVel,yi*1.5,7,dt);P.pitchVel=damp(P.pitchVel,pi*1.1,7,dt);
     const dyaw=P.yawVel*dt-mdx*.0022*ST.mouse,dpitch=P.pitchVel*dt-mdy*.0022*ST.mouse*(ST.invertY?-1:1);mdx=mdy=0;
-    P.yaw+=dyaw;P.pitch=clamp(P.pitch+dpitch,-1.3,1.3);
+    P.yaw+=dyaw;P.pitch=clamp(P.pitch+dpitch,photo?-1.55:-1.3,photo?1.55:1.3);
     P.roll=damp(P.roll,clamp(-dyaw/dt*.45,-.9,.9),5,dt);
     // nothing pressed: hang in the air and look around. W flies forward, Shift sprints, S backs off
-    const boost=key.ShiftLeft||key.ShiftRight,go=key.KeyW||boost,tgt=go?(boost?120:60)*ST.flySpeed:key.KeyS?-14:0;
+    const boost=key.ShiftLeft||key.ShiftRight,go=key.KeyW||boost,tgt=(go?(boost?120:60)*ST.flySpeed:key.KeyS?-14:0)*(photo?.35:1);
     P.speed=damp(P.speed,tgt,go?1.2:key.KeyS?2.2:1.8,dt);
     P.vy=damp(P.vy,((key.Space||key.KeyE)?30:0)-((key.KeyQ||key.KeyC)?30:0),4,dt);
     fwd.set(Math.sin(P.yaw)*Math.cos(P.pitch),Math.sin(P.pitch),Math.cos(P.yaw)*Math.cos(P.pitch));
@@ -1506,10 +1657,15 @@ function frame(now){
   // player visuals + camera
   player.position.copy(P.pos);player.position.y+=Math.sin(clock*2.1)*.12;
   player.rotation.set(-P.pitch,P.yaw,P.roll);
-  tmp.copy(P.pos).addScaledVector(fwd,-(11.5+Math.max(0,P.speed)*.035)*ST.camDist);tmp.y+=5*ST.camDist;
-  camera.position.lerp(tmp,window.__camSnap?1:1-Math.exp(-7*dt));
-  look.copy(P.pos).addScaledVector(fwd,12);look.y+=1.4;camera.lookAt(look);
-  const fov=ST.fov+Math.max(0,P.speed)*.2;if(Math.abs(camera.fov-fov)>.05){camera.fov=damp(camera.fov,fov,3,dt);camera.updateProjectionMatrix()}
+  if(photo){   // photo mode: the camera is where the (hidden) rider is, so it can go right up to a railing and look straight down
+    camera.position.lerp(P.pos,window.__camSnap?1:1-Math.exp(-10*dt));look.copy(camera.position).add(fwd);camera.lookAt(look);
+  }else{
+    tmp.copy(P.pos).addScaledVector(fwd,-(11.5+Math.max(0,P.speed)*.035)*ST.camDist);tmp.y+=5*ST.camDist;
+    camera.position.lerp(tmp,window.__camSnap?1:1-Math.exp(-7*dt));
+    look.copy(P.pos).addScaledVector(fwd,12);look.y+=1.4;camera.lookAt(look);
+  }
+  updatePlayerCard();
+  const fov=(photo&&photoFov?photoFov:ST.fov)+Math.max(0,P.speed)*.2;if(Math.abs(camera.fov-fov)>.05){camera.fov=damp(camera.fov,fov,3,dt);camera.updateProjectionMatrix()}
   // npcs
   windU.value=clock;
   camera.updateMatrixWorld();camR.setFromMatrixColumn(camera.matrixWorld,0);
