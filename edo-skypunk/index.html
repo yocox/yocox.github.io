@@ -110,6 +110,9 @@ class Buf{
     const v=this.v;this.i.push(v,v+1,v+2,v,v+2,v+3);this.v+=4;
   }
   box(cx,cy,cz,sx,sy,sz,col,q){
+    if(this.route){const mn=Math.min(sx,sy,sz),mx=Math.max(sx,sy,sz);
+      return this.route.beam.beamBox(cx,cy,cz,sx,sy,sz,col,q);   // all timber: one texture, grain along the piece
+      if(!q&&sy<.7&&Math.min(sx,sz)>1.2)return this.route.plank.box(cx,cy,cz,sx,sy,sz,col);}
     const hx=sx/2,hy=sy/2,hz=sz/2,ts=6;
     const P=(x,y,z)=>{if(q){_v.set(x,y,z).applyQuaternion(q);return[_v.x+cx,_v.y+cy,_v.z+cz]}return[x+cx,y+cy,z+cz]};
     this.quad(P(hx,-hy,hz),P(hx,-hy,-hz),P(hx,hy,-hz),P(hx,hy,hz),col,0,0,sz/ts,sy/ts);
@@ -118,6 +121,19 @@ class Buf{
     this.quad(P(hx,-hy,-hz),P(-hx,-hy,-hz),P(-hx,hy,-hz),P(hx,hy,-hz),col,0,0,sx/ts,sy/ts);
     this.quad(P(-hx,hy,hz),P(hx,hy,hz),P(hx,hy,-hz),P(-hx,hy,-hz),col,0,0,sx/ts,sz/ts);
     this.quad(P(-hx,-hy,-hz),P(hx,-hy,-hz),P(hx,-hy,hz),P(-hx,-hy,hz),col,0,0,sx/ts,sz/ts);
+  }
+  // a box whose texture runs along its longest side (wood grain along a post or rail)
+  beamBox(cx,cy,cz,sx,sy,sz,col,q){
+    const h=[sx/2,sy/2,sz/2],dm=[sx,sy,sz],L=dm.indexOf(Math.max(sx,sy,sz));
+    const P=v=>{if(q){_v.set(v[0],v[1],v[2]).applyQuaternion(q);return[_v.x+cx,_v.y+cy,_v.z+cz]}return[v[0]+cx,v[1]+cy,v[2]+cz]};
+    for(let ax=0;ax<3;ax++)for(const sg of[1,-1]){
+      const o=[0,1,2].filter(i=>i!==ax),l=o.includes(L)?L:o[1],sa=o[0]===l?o[1]:o[0];
+      const C=(ss,ll)=>{const v=[0,0,0];v[ax]=sg*h[ax];v[sa]=ss*h[sa];v[l]=ll*h[l];return v};
+      let a=C(-1,-1),b=C(1,-1),c=C(1,1),d=C(-1,1);
+      const ab=[b[0]-a[0],b[1]-a[1],b[2]-a[2]],ad=[d[0]-a[0],d[1]-a[1],d[2]-a[2]],nn=[ab[1]*ad[2]-ab[2]*ad[1],ab[2]*ad[0]-ab[0]*ad[2],ab[0]*ad[1]-ab[1]*ad[0]][ax];
+      if(nn*sg<0){a=C(1,-1);b=C(-1,-1);c=C(-1,1);d=C(1,1)}   // keep the face pointing outward
+      this.quad(P(a),P(b),P(c),P(d),col,0,0,Math.max(.15,dm[sa]/1.3),dm[l]/6);
+    }
   }
   geom(g,m,col){
     const P=g.attributes.position,N=g.attributes.normal,U=g.attributes.uv,base=this.v;_nm.getNormalMatrix(m);
@@ -145,6 +161,10 @@ class Buf{
   }
 }
 const NRM=[[1,0],[-1,0],[0,1],[0,-1]];
+// point a box's long (z) axis along d with its up axis kept as close to world-up as possible: bridges pitch along their length but never roll
+const _m4=new THREE.Matrix4(),_o3=new V3(),_t3=new V3();
+const alongQ=d=>new THREE.Quaternion().setFromRotationMatrix(_m4.lookAt(_o3,_t3.copy(d).negate(),new V3(0,1,0)));
+
 // vertical quad lying on a face of a box centred at (cx,cz); s = offset along the face
 function panel(buf,cx,cz,side,dist,s,wd,y0,h,col,u0=0,v0=0,u1=1,v1=1){
   const [nx,nz]=NRM[side],tx=nz,tz=-nx,bx=cx+nx*dist,bz=cz+nz*dist;
@@ -166,6 +186,16 @@ function roof(buf,cx,y,cz,w0,d0,w1,d1,h,col,lift=1.2,rows=4){
     const k2=(k+1)%N,side=Math.floor(k/(2*K))%2===0?w1:d1,rep=Math.max(1,Math.round(side/5))/K;
     buf.quad(rings[i+1][k2],rings[i+1][k],rings[i][k],rings[i][k2],col,(k+1)*rep,i+1,k*rep,i);
   }
+  // ridges: a capped ridge along the top and down each hip, in darker tiles
+  if(w1>3&&d1>3){const rc=_rc.copy(col).multiplyScalar(.62),top=rings[0];
+    for(let e=0;e<4;e++){const k=e*2*K;for(let i=0;i<rows;i++)ridgeCap(buf,rings[i][k],rings[i+1][k],rc,.22+.1*(1-i/rows))}
+    if(Math.min(w0,d0)<1.5&&Math.max(w0,d0)>.8){const a=top[0],b=w0>=d0?top[2*K]:top[6*K];ridgeCap(buf,a,b,rc,.4);if(w0>=d0){ridgeCap(buf,top[6*K],top[4*K],rc,.4)}else{ridgeCap(buf,top[2*K],top[4*K],rc,.4)}}}
+}
+const _rc=new THREE.Color();
+function ridgeCap(buf,p0,p1,col,s){   // a small triangular cap along p0-p1, raised above the tiles
+  const dx=p1[0]-p0[0],dz=p1[2]-p0[2],L=Math.hypot(dx,dz)||1,sx=-dz/L*s,sz=dx/L*s,up=s*1.1;
+  const a=[p0[0]-sx,p0[1]+.05,p0[2]-sz],b=[p1[0]-sx,p1[1]+.05,p1[2]-sz],c=[p1[0],p1[1]+up,p1[2]],d=[p0[0],p0[1]+up,p0[2]],e=[p0[0]+sx,p0[1]+.05,p0[2]+sz],f=[p1[0]+sx,p1[1]+.05,p1[2]+sz];
+  buf.quad(a,b,c,d,col,0,0,1,.15);buf.quad(d,c,f,e,col,0,.15,1,0);
 }
 
 /* ---------- textures ---------- */
@@ -175,6 +205,12 @@ function canvasTex(w,h,draw,repeat=true){
   if(repeat)t.wrapS=t.wrapT=THREE.RepeatWrapping;return t;
 }
 const trand=mulberry32(7);
+const beamTex=canvasTex(128,256,(g,w,h)=>{g.fillStyle='#fff';g.fillRect(0,0,w,h);
+  for(let i=0;i<70;i++){g.strokeStyle=`rgba(70,35,15,${.06+trand()*.1})`;g.lineWidth=1;const x=trand()*w;g.beginPath();g.moveTo(x,0);g.bezierCurveTo(x+trand()*6-3,h/3,x+trand()*6-3,h*2/3,x+trand()*4-2,h);g.stroke()}
+  g.strokeStyle='rgba(55,28,12,.45)';g.lineWidth=2;for(const x of[1,w/2,w-1]){g.beginPath();g.moveTo(x,0);g.lineTo(x,h);g.stroke()}});
+const plankTex=canvasTex(256,256,(g,w,h)=>{g.fillStyle='#fff';g.fillRect(0,0,w,h);
+  for(let i=0;i<200;i++){g.strokeStyle=`rgba(70,35,15,${.05+trand()*.09})`;const y=trand()*h,x=trand()*w;g.beginPath();g.moveTo(x,y);g.lineTo(x+30+trand()*80,y+trand()*2-1);g.stroke()}
+  g.strokeStyle='rgba(55,28,12,.5)';g.lineWidth=2;for(let y=0;y<h;y+=h/6){g.beginPath();g.moveTo(0,y+1);g.lineTo(w,y+1);g.stroke()}});
 const woodTex=canvasTex(256,256,(g,w,h)=>{
   g.fillStyle='#fff';g.fillRect(0,0,w,h);
   for(let i=0;i<40;i++){g.fillStyle=`rgba(90,50,25,${.03+trand()*.06})`;const r=20+trand()*60;g.beginPath();g.ellipse(trand()*w,trand()*h,r,r*.5,0,0,7);g.fill()}
@@ -203,7 +239,7 @@ const towerNames=SPECIAL.slice();
  while(towerNames.length<NTOWER+NMID){const n=pick(pre)+pick(suf);if(!towerNames.includes(n))towerNames.push(n)}}
 const ACOLS=16,AROWS=8;
 const atlasTex=canvasTex(2048,4096,(g)=>{
-  const all=GENERAL.concat(towerNames),styles=[['#f1e6cb','#3a2a22'],['#2f4268','#f1e6cb'],['#f1e6cb','#3a2a22'],['#a63f2c','#f6ecd8'],['#e9dcc0','#2f4268']];
+  const all=GENERAL.concat(towerNames),styles=[['#f1e6cb','#3a2a22'],['#6f7f9f','#f4ead6'],['#f1e6cb','#3a2a22'],['#c98872','#f8efdc'],['#e9dcc0','#4f5f80']];
   g.textAlign='center';g.textBaseline='middle';
   all.forEach((txt,i)=>{
     const x=(i%ACOLS)*128,y=Math.floor(i/ACOLS)*512,[bg,fg]=i>=GENERAL.length&&i<GENERAL.length+3?styles[0]:styles[i%styles.length];
@@ -299,11 +335,18 @@ function putSprite(cell,im,center){const s=prepSprite(im);if(!s)return false;
   const ox=(cell%SPC)*SPS,oy=Math.floor(cell/SPC)*SPS,sc=Math.min((SPS-8)/s.w,(SPS-8)/s.h),dw=s.w*sc,dh=s.h*sc;
   spg.clearRect(ox,oy,SPS,SPS);spg.drawImage(s.cv,s.x0,s.y0,s.w,s.h,ox+(SPS-dw)/2,center?oy+(SPS-dh)/2:oy+SPS-4-dh,dw,dh);spTex.needsUpdate=true;return true}
 function loadAssets(){
-  for(const [name,tex] of[['wall_wood',woodTex],['roof_tiles',tileTex],['ground_city',groundTex],['street_paving',paveTex]])tryImg(name,im=>{tex.image=im;tex.needsUpdate=true});
+  // wood textures are tinted by each surface's own colour, so most of their colour is taken out first (brightness, washes and ink lines stay)
+  const neutral=(im,keep)=>{const c=document.createElement('canvas');c.width=im.width;c.height=im.height;const g=c.getContext('2d',{willReadFrequently:true});g.drawImage(im,0,0);
+    const id=g.getImageData(0,0,c.width,c.height),d=id.data;let sum=0;for(let k=0;k<d.length;k+=4)sum+=.299*d[k]+.587*d[k+1]+.114*d[k+2];const gain=Math.min(1.6,232/(sum/(d.length/4)));
+    for(let k=0;k<d.length;k+=4){const l=.299*d[k]+.587*d[k+1]+.114*d[k+2];for(let j=0;j<3;j++)d[k+j]=Math.min(255,(l+(d[k+j]-l)*keep)*gain)}g.putImageData(id,0,0);return c};
+  for(const [name,tex,keep] of[['wall_wood',woodTex,.35],['wood_beam',beamTex,.35],['wood_planks',plankTex,.3],['roof_tiles',tileTex,1],['ground_city',groundTex,1],['street_paving',paveTex,1]])
+    tryImg(name,im=>{tex.image=keep<1?neutral(im,keep):im;tex.needsUpdate=true});
   for(let i=0;i<32;i++)tryImg('facade_'+pad(i+1),im=>put(i,im));
   for(let i=0;i<8;i++){tryImg('person_'+pad(i+1),im=>putSprite(i,im));tryImg('plant_'+pad(i+1),im=>putSprite(8+i,im))}
   for(let i=0;i<4;i++)tryImg('rider_'+pad(i+1),im=>putSprite(16+i,im,true));
   for(let i=0;i<4;i++)tryImg('cloud_'+pad(i+1),im=>putCloud(i,im));
+  for(let i=0;i<3;i++)tryImg('foliage_'+pad(i+1),im=>putSprite(40+i,im,true));
+  for(let i=0;i<6;i++)tryImg('cat_'+pad(i+1),im=>putSprite(CAT_CELL[i],im));
   // vine decals go in the card atlas: climbing ones stand on the bottom edge, hanging ones hang from the top edge
   for(let i=0;i<4;i++)tryImg('vine_'+pad(i+1),im=>{const s=prepSprite(im);if(!s)return;const c=i%4,r=Math.floor(i/4),sc=Math.min((CW-6)/s.w,(CW-6)/s.h),dw=s.w*sc,dh=s.h*sc;
     cg.clearRect(c*CW,r*CW,CW,CW);cg.drawImage(s.cv,s.x0,s.y0,s.w,s.h,c*CW+(CW-dw)/2,(i===1||i===2)?r*CW+3:r*CW+CW-3-dh,dw,dh);cardTex.needsUpdate=true});
@@ -340,7 +383,7 @@ const postU={tC:{value:null},tD:{value:null},tBlur:{value:null},tBloomS:{value:n
   uInvProj:{value:new THREE.Matrix4()},uCamWorld:{value:new THREE.Matrix4()},uCamPos:{value:new THREE.Vector3()},
   uSunDir:{value:new THREE.Vector3(0,1,0)},uSunCol:{value:new THREE.Color()},uFogCol:{value:new THREE.Color()},uGlowCol:{value:new THREE.Color('#e08a52')},
   uFogA:{value:.0016},uShaftCol:{value:new THREE.Color()},
-  kInk:{value:1},kDof:{value:1},kBloom:{value:1},kDream:{value:1},kShaft:{value:1},kNear:{value:1},kGrain:{value:1},kSketch:{value:1},kCrease:{value:1}};
+  kInk:{value:1},kDof:{value:1},kBloom:{value:1},kDream:{value:1},kShaft:{value:1},kNear:{value:1},kGrain:{value:1},kSketch:{value:1},kCrease:{value:1},kWater:{value:1}};
 const postCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1),fsScene=new THREE.Scene(),fsMesh=new THREE.Mesh(new THREE.PlaneGeometry(2,2));fsMesh.frustumCulled=false;fsScene.add(fsMesh);
 const FSV='varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}';
 const fsMat=(uniforms,frag)=>new THREE.ShaderMaterial({uniforms,vertexShader:FSV,fragmentShader:frag,depthTest:false,depthWrite:false});
@@ -360,7 +403,7 @@ const shaftMat=fsMat({tSrc:{value:null},tD:{value:null},light:{value:new THREE.V
     vec2 d=(light-vUv)/40.;vec2 p=vUv;float w=1.;vec3 acc=vec3(0.);
     for(int i=0;i<40;i++){p+=d;float sky=step(.99999,texture2D(tD,p).x);vec3 c=texture2D(tSrc,p).rgb;acc+=c*sky*w;w*=.955;}
     gl_FragColor=vec4(acc/40.*str,1.);}`);
-const postMat=fsMat(postU,`uniform sampler2D tC,tD,tBlur,tBloomS,tBloomW,tShaft;uniform vec2 px;uniform float night,time,uFogA,kInk,kDof,kBloom,kDream,kShaft,kNear,kGrain,kSketch,kCrease;
+const postMat=fsMat(postU,`uniform sampler2D tC,tD,tBlur,tBloomS,tBloomW,tShaft;uniform vec2 px;uniform float kWater,night,time,uFogA,kInk,kDof,kBloom,kDream,kShaft,kNear,kGrain,kSketch,kCrease;
   uniform mat4 uInvProj,uCamWorld;uniform vec3 uCamPos,uSunDir,uSunCol,uFogCol,uGlowCol,uShaftCol;varying vec2 vUv;
   const float N=1.,F=9000.;
   float iz(vec2 uv){float d=texture2D(tD,uv).x;return((F+N)-(2.*d-1.)*(F-N))/(2.*N*F);}
@@ -390,7 +433,7 @@ const postMat=fsMat(postU,`uniform sampler2D tC,tD,tBlur,tBloomS,tBloomW,tShaft;
     // creases: where a surface turns a corner (box edges, eave lines, rails against walls) draw a finer, lighter line too
     float crease=smoothstep(.0006,.0018,e)*(1.-smoothstep(.0035,.014,e))*(1.-smoothstep(140.,420.,z));
     col=mix(col,col*.5+ink*.1,clamp(crease*.6*kCrease,0.,1.));
-    vec3 blur=texture2D(tBlur,vUv).rgb;
+    vec2 bo=px*3.;vec3 blur=(texture2D(tBlur,vUv+vec2(bo.x,bo.y)).rgb+texture2D(tBlur,vUv+vec2(-bo.x,bo.y)).rgb+texture2D(tBlur,vUv+vec2(bo.x,-bo.y)).rgb+texture2D(tBlur,vUv-bo).rgb)*.25;
     // far things go soft
     if(!isSky)col=mix(col,blur,min(.95,smoothstep(320.,2200.,dist)*.8*kDof));
     // height fog: thick near the ground, thinning upward, drifting in patches; glows toward the sun and, at night, warm with lantern light below
@@ -398,7 +441,7 @@ const postMat=fsMat(postU,`uniform sampler2D tC,tD,tBlur,tBloomS,tBloomW,tShaft;
     float x=b*rd.y*dist,I=a*exp(-b*max(uCamPos.y,0.))*(abs(x)<1e-4?dist:(1.-exp(-x))/(b*rd.y));
     float fog=1.-exp(-I);if(isSky)fog*=.55;
     float sunF=pow(max(dot(rd,uSunDir),0.),6.);
-    vec3 fc=mix(uFogCol,uSunCol*1.15,sunF*.65);
+    vec3 fc=mix(uFogCol,uSunCol*1.1,sunF*mix(.3,.65,night));
     float low=exp(-max(isSky?200.:wp.y,0.)/80.);fc=mix(fc,uGlowCol,low*night*.6);
     col=mix(col,fc,clamp(fog,0.,.97));
     // where fog or mist swallows the colour, keep the ink: buildings in the haze read as line drawings
@@ -407,7 +450,7 @@ const postMat=fsMat(postU,`uniform sampler2D tC,tD,tBlur,tBloomS,tBloomW,tShaft;
     // glow: wide soft bloom + a dreamy screen-blend of the blurred image + shafts of light
     vec3 bs=texture2D(tBloomS,vUv).rgb,bw=texture2D(tBloomW,vUv).rgb;
     col+=(bs*mix(.35,.95,night)+bw*mix(.3,1.25,night))*kBloom;
-    vec3 dream=blur*mix(.1,.24,night)*kDream;col=1.-(1.-col)*(1.-clamp(dream,0.,1.));
+    vec3 dream=blur*mix(.06,.24,night)*kDream;col=1.-(1.-col)*(1.-clamp(dream,0.,1.));
     col+=texture2D(tShaft,vUv).rgb*uShaftCol*kShaft;
     // near things: more contrast and colour
     float nearK=(isSky?0.:1.-smoothstep(30.,520.,dist))*kNear;
@@ -415,6 +458,15 @@ const postMat=fsMat(postU,`uniform sampler2D tC,tD,tBlur,tBloomS,tBloomW,tShaft;
     float lum=dot(lc,vec3(.299,.587,.114));lc=clamp(mix(vec3(lum),lc,1.+.22*nearK),0.,1.);
     lc=mix(lc,lc*lc*(3.-2.*lc),min(1.,.4*nearK));col=lc+hi;
     // paper grain and a soft shoulder for the brightest lights
+    // watercolour medium: pigment pools at the edges of washes, settles as granules in the darker passages,
+    // each surface carries an uneven wash, and the brightest light is bare paper
+    if(kWater>0.){
+      float wl=dot(col,vec3(.299,.587,.114));
+      col*=1.-kWater*.2*smoothstep(.03,.2,length(blur-col))*(1.-smoothstep(.85,1.1,wl));
+      float gr=noise(vUv*asp*720.)*.6+noise(vUv*asp*180.)*.4;col*=1.-kWater*.15*(1.-clamp(wl,0.,1.))*(gr-.35);
+      if(!isSky){float wa=noise(wp.xz*.06+vec2(wp.y*.045))*.65+noise(wp.xz*.21-vec2(wp.y*.13))*.35;col*=1.+kWater*.15*(wa-.5)*(1.-smoothstep(300.,1400.,dist));}
+      col=mix(col,vec3(1.,.975,.93),kWater*.35*smoothstep(.93,1.1,wl)*(1.-night));
+    }
     float g=noise(vUv*asp*260.)*.5+noise(vUv*asp*38.)*.5;col*=1.+(g-.5)*.1*kGrain;
     vec3 ex=max(col-.85,0.);col=min(col,.85)+ex/(1.+ex*1.6);
     gl_FragColor=vec4(col,1.);
@@ -465,7 +517,7 @@ sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-.0006;sun
 {const sc=sun.shadow.camera;sc.left=-320;sc.right=320;sc.top=320;sc.bottom=-320;sc.near=50;sc.far=1600;sc.updateProjectionMatrix()}
 
 const M={
-  wood:new THREE.MeshLambertMaterial({map:woodTex,vertexColors:true}),
+  wood:new THREE.MeshLambertMaterial({map:beamTex,vertexColors:true}),
   roof:new THREE.MeshLambertMaterial({map:tileTex,vertexColors:true,side:THREE.DoubleSide}),
   win:new THREE.MeshBasicMaterial({map:shojiTex,vertexColors:true,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),
   wind:new THREE.MeshLambertMaterial({map:shojiTex,vertexColors:true,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),
@@ -473,6 +525,8 @@ const M={
   ban:new THREE.MeshLambertMaterial({map:atlasTex,vertexColors:true,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3}),
   cloth:new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide}),
   flat:new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide,flatShading:true}),
+  beam:new THREE.MeshLambertMaterial({map:beamTex,vertexColors:true}),
+  plank:new THREE.MeshLambertMaterial({map:plankTex,vertexColors:true}),
   fac:new THREE.MeshLambertMaterial({map:facTex,emissiveMap:emiTex,emissive:new THREE.Color(1,.7,.36),emissiveIntensity:0,vertexColors:true,alphaTest:.5,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),
   card:new THREE.MeshLambertMaterial({map:cardTex,alphaTest:.5,side:THREE.DoubleSide}),
 };
@@ -481,7 +535,7 @@ const M={
 // further back, and the texture is marched along the view ray (relief mapping) so they shift like real recesses when seen at an angle
 M.fac.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader
   .replace('void main() {',`vec2 pUv;
-float facDepth(vec2 uv){vec3 c=texture2D(map,uv).rgb;return clamp((.55-dot(c,vec3(.299,.587,.114)))*2.,0.,1.);}
+float facDepth(vec2 uv){vec3 c=texture2D(map,uv,2.5).rgb;return clamp((.5-dot(c,vec3(.299,.587,.114)))*2.2,0.,1.);}   // blurred (mip bias) so wood grain doesn't make ridges
 void main() {`)
   .replace('#include <map_fragment>',`
     pUv=vMapUv;float vd=length(vViewPosition);
@@ -491,8 +545,10 @@ void main() {`)
       float det=max(dot(Tt,Tt),dot(Bt,Bt));
       if(det>0.){float sc=inversesqrt(det);vec3 V=normalize(vViewPosition),vt=vec3(dot(V,Tt*sc),dot(V,Bt*sc),dot(V,Nn));
         vec2 cmin=floor(vMapUv*vec2(4.,8.))/vec2(4.,8.),cmax=cmin+vec2(.25,.125);cmin+=vec2(.004,.003);cmax-=vec2(.004,.003);
-        vec2 du=-vt.xy/max(vt.z,.3)*.014*kDepth*(1.-smoothstep(140.,230.,vd))/10.;float layer=0.,h=facDepth(pUv);
-        for(int i=0;i<10;i++){if(layer>=h)break;pUv+=du;layer+=.1;h=facDepth(pUv);}
+        // more layers, and the hit point is interpolated between the last two, so the recess has no visible steps
+        vec2 du=-vt.xy/max(vt.z,.3)*.014*kDepth*(1.-smoothstep(140.,230.,vd))*smoothstep(3.,12.,vd)/16.;float layer=0.,h=facDepth(pUv),ph=h;
+        for(int i=0;i<16;i++){if(layer>=h)break;ph=h;pUv+=du;layer+=.0625;h=facDepth(pUv);}
+        float after=h-layer,before=ph-(layer-.0625),wt=after/(after-before+1e-5);pUv-=du*clamp(wt,0.,1.);
         pUv=clamp(pUv,cmin,cmax);}
     }
     diffuseColor*=texture2D(map,pUv);`)
@@ -503,20 +559,32 @@ const facDepthU={value:1};
 const SWAY='sin(uTime*1.8+position.x*.3+position.z*.3+position.y*.25)*.42+sin(uTime*3.1+position.x*.7-position.z*.5)*.12';
 M.ban.onBeforeCompile=sh=>{sh.uniforms.uTime=windU;sh.vertexShader='uniform float uTime;\n'+sh.vertexShader.replace('#include <color_vertex>','vColor=vec3(1.);').replace('#include <begin_vertex>','#include <begin_vertex>\n transformed+=normal*('+SWAY+')*color.r;')};
 M.cloth.onBeforeCompile=sh=>{sh.uniforms.uTime=windU;sh.vertexShader='uniform float uTime;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n transformed+=normal*('+SWAY+')*uv.y;')};
-const newBufs=()=>({wood:new Buf,roof:new Buf,win:new Buf,wind:new Buf,glow:new Buf,ban:new Buf,flat:new Buf,fac:new Buf,card:new Buf,cloth:new Buf});
-const addBufs=B=>{for(const k in B){if(!(B[k] instanceof Buf))continue;const m=B[k].mesh(M[k]);if(m){m.matrixAutoUpdate=false;m.castShadow=k==='wood'||k==='roof'||k==='flat';m.receiveShadow=k!=='glow'&&k!=='win';scene.add(m)}}};
+washify(M.roof,.45);
+for(const k of['wood','win','wind','ban','flat','fac','card','cloth','beam','plank'])if(M[k].isMeshLambertMaterial)washify(M[k]);
+const washU={k:{value:1},ref:{value:1},cool:{value:new THREE.Color(.95,.91,.9)}};   // shadow wash: warm and slightly muted, so timber in shade stays tan, not grey
+function washify(m,st=1){const prev=m.onBeforeCompile;
+  m.onBeforeCompile=(sh,r)=>{if(prev)prev(sh,r);sh.uniforms.kWash=washU.k;sh.uniforms.uRef=washU.ref;sh.uniforms.uCool=washU.cool;
+    sh.fragmentShader='uniform float kWash,uRef;uniform vec3 uCool;\n'+sh.fragmentShader.replace('vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + totalEmissiveRadiance;',
+`vec3 Lc=(reflectedLight.directDiffuse+reflectedLight.indirectDiffuse)/max(diffuseColor.rgb,vec3(.03));
+    float kW=kWash*${st.toFixed(2)},wl=dot(Lc,vec3(.299,.587,.114)),wr=wl/uRef,wr2=mix(wr,.6+.48*smoothstep(0.,1.,wr),kW);
+    vec3 Lw=Lc/max(wl,1e-4)*wr2*uRef*mix(vec3(1.),mix(uCool,vec3(1.),smoothstep(.3,.95,wr)),kW);
+    vec3 outgoingLight=diffuseColor.rgb*Lw+totalEmissiveRadiance;`)};
+  m.customProgramCacheKey=()=>'wash'+st+'|'+(prev?prev.toString():'')}
+const newBufs=()=>{const B={wood:new Buf,roof:new Buf,win:new Buf,wind:new Buf,glow:new Buf,ban:new Buf,flat:new Buf,fac:new Buf,card:new Buf,cloth:new Buf,beam:new Buf,plank:new Buf};B.wood.route={beam:B.beam,plank:B.plank};return B};
+const addBufs=B=>{for(const k in B){if(!(B[k] instanceof Buf))continue;const m=B[k].mesh(M[k]);if(m){m.matrixAutoUpdate=false;m.castShadow=k==='wood'||k==='roof'||k==='flat'||k==='beam'||k==='plank';m.receiveShadow=k!=='glow'&&k!=='win';scene.add(m)}}};
 
 /* ---------- palette & shared geometry ---------- */
-const WOODS=['#d9a878','#c99468','#e2b88c','#b98560','#cf9c7a','#c08a70'].map(C),DARK=C('#7a4e38'),PLANK=C('#e6c096'),TRUNK=C('#9a7460');
-const ROOFS=['#5f6f84','#6b7a8c','#566679','#607c7c','#6a7390','#5a7068','#75808c'].map(C);
+const WOODS=['#ecd5a8','#e8cfa0','#efd9b0','#e5cc9c','#ead3a6'].map(C),DARK=C('#dcbd8c'),PLANK=C('#ecd4a6'),TRUNK=C('#d9b98a');
+// pale grey-blue tiles as in the paintings, with the odd copper-green or wood-shingle roof
+const ROOFS=['#68737f','#737c88','#5e6a77','#6a7673','#717685','#626e69','#7a8088','#68737f','#737c88','#5c8477','#7a5e4b'].map(C);
 const PAPER=C('#fbf3df'),PAPER2=C('#f3e3bd'),PAPERD=C('#a9b0bd');
-const LRED=C('#ee5a3c'),LCREAM=C('#ffe9b0'),RED=C('#b5452f'),INDIGO=C('#34496f'),WHITE=C('#f4f0e6');
+const LRED=C('#ec8a6a'),LCREAM=C('#ffe9b0'),RED=C('#d99c86'),INDIGO=C('#7484a6'),WHITE=C('#f4f0e6');
 const GREENS=['#6f9a5a','#5f8a52','#86ad6a','#4f7a55'].map(C),PINKS=['#f4c3cf','#f0b0c2','#f8d5dc'].map(C),POTS=['#b06a4a','#5f7fa8','#d8d0c0'].map(C);
-const SKIN=C('#f3d3b8'),STRAW=C('#dcb872'),STICK=C('#8a5a3a'),BLACK=C('#26211f'),PIPE=C('#8fa39c'),UP=new V3(0,1,0);
+const SKIN=C('#f3d3b8'),STRAW=C('#dcb872'),STICK=C('#8a5a3a'),BLACK=C('#26211f'),PIPE=C('#c9c2a4'),UP=new V3(0,1,0);
 const LITC=new THREE.Color(1,1,1),UNLIT=new THREE.Color(.8,.83,.9);
 const KIM=['#3e5c8a','#a8453a','#5f8a6a','#d9c9a8','#7a5a8a','#c98a4a','#48607a','#8a8a8a'].map(C);
-const AWN=['#b5452f','#34496f','#e9dcc0','#5f8a6a','#c98a4a'].map(C);
-const STONE=C('#b9b2a4'),PLASTER=C('#efe6d2'),LORANGE=C('#f5a04a'),WATER=C('#86b4cf'),BOUNCE=C('#e6bd8e'),AUTUMN=['#d9743c','#e09a3e','#c6503a'].map(C);
+const AWN=['#e0ad96','#efe5cf','#e6c48f','#b7c6a8','#efe5cf','#9fadc6','#e6c48f'].map(C);
+const STONE=C('#cfc6b4'),PLASTER=C('#efe6d2'),LORANGE=C('#f2b07a'),WATER=C('#86b4cf'),BOUNCE=C('#e6bd8e'),AUTUMN=['#d9743c','#e09a3e','#c6503a'].map(C);
 const windU={value:0};   // shared clock for swaying cloth
 const barrelG=new THREE.CylinderGeometry(.5,.44,1.1,8);
 const ico0=new THREE.IcosahedronGeometry(1,0),ico1=new THREE.IcosahedronGeometry(1,1);
@@ -623,10 +691,11 @@ for(let i=0;i<4;i++)spCell(16+i,g=>{
   g.fillStyle=FBK[(i*3+1)%8];g.beginPath();g.moveTo(220,300);g.quadraticCurveTo(230,190,280,180);g.lineTo(310,190);g.quadraticCurveTo(330,260,320,300);g.closePath();g.fill();g.stroke();
   g.beginPath();g.moveTo(300,296);g.lineTo(380,300);g.lineTo(386,330);g.lineTo(300,326);g.closePath();g.fill();g.stroke();
   g.fillStyle='#f3d3b8';g.beginPath();g.arc(296,150,30,0,7);g.fill();g.stroke();g.fillStyle='#2a2422';g.beginPath();g.arc(290,142,32,Math.PI*.9,Math.PI*2.1);g.fill()});
+for(let i=0;i<3;i++)spCell(40+i,g=>{for(let k=0;k<40;k++){const a=frand()*6.28,r=Math.sqrt(frand())*170,x=256+Math.cos(a)*r*1.3,y=260+Math.sin(a)*r*(i===1?.45:.8);g.fillStyle=['#86ad6a','#6f9a5a','#5f8a52','#9ac07a'][k%4];g.beginPath();g.arc(x,y,40+frand()*45,0,7);g.fill();g.lineWidth=3;g.stroke()}});
 const spTex=new THREE.CanvasTexture(spCv);spTex.colorSpace=THREE.SRGBColorSpace;spTex.anisotropy=4;
 const spTint={value:new THREE.Color(1,1,1)};
 // size multipliers (the settings panel changes these): a storey is ~6.2 units for 3.3 m, so a person of 1.7 m is ~3.2 units
-const SC={people:{value:1.6},fly:{value:1.35},tree:{value:1}};
+const SC={people:{value:2.25},fly:{value:1.9},tree:{value:1},cat:{value:.55}};
 function spMat(maxD,scaleU){
   const m=new THREE.ShaderMaterial({uniforms:THREE.UniformsUtils.merge([THREE.UniformsLib.fog,{map:{value:null},uTint:{value:null},uMaxD:{value:maxD},uScale:{value:1}}]),fog:true,side:THREE.DoubleSide,
     vertexShader:`attribute vec3 iPos;attribute vec4 iData;uniform float uMaxD,uScale;varying vec2 vUv;
@@ -750,7 +819,7 @@ function balconyProps(B,T,cx,cz,side,dist,fy,dep,bw,s){
     for(let r=0;r<9;r++){const [qx,qz]=pt(dist+.55,a);B.wood.box(qx,fy+.9+r*.75,qz,X?.1:.8,.1,X?.8:.1,DARK)}}
   if(chance(.08)){const [qx,qz]=pt(dist+dep*.5,ra());umbrella(B,qx,fy+.4,qz)}
   if(chance(.25))for(let k=RI(2,6);k>0;k--){const L=R(1,4.5);panel(B.cloth,cx,cz,side,dist+dep+.14,ra(),R(.6,1.4),fy+.15-L,L,pick(GREENS),0,1,1,0)}   // ivy spilling over the edge
-  const np=chance(.4)?RI(1,com?3:2):0;for(let i=0;i<np;i++){const [qx,qz]=pt(dist+R(1.2,dep-.8),ra());person(B,qx,fy+.4,qz)}
+  const np=chance(com?.6:.4)?RI(1,com?4:2):0;for(let i=0;i<np;i++){const [qx,qz]=pt(dist+R(1.2,dep-.8),ra());person(B,qx,fy+.4,qz)}
   for(let k=chance(.65)?RI(1,2):0;k>0;k--){const [qx,qz]=pt(dist+R(1.3,dep-1.3),ra());card(qx,fy+.4,qz)}
 }
 // remember a balcony/terrace/veranda bay: world position (for cats) plus its local frame (for doors built later)
@@ -784,20 +853,30 @@ function irimoya(B,cx,y,cz,w,d,h,col){
   const X=w>=d;roof(B.roof,cx,y,cz,X?w*.62:w*.38,X?d*.38:d*.62,w+6,d+6,h*.5,col,1.7,3);
   roofGable(B,cx,y+h*.42,cz,X?w*.66:w*.42,X?d*.42:d*.66,h*.62,col,1.4);
 }
-function balcony(B,T,cx,cz,side,len,dist,fy){
-  const D=B.D,dep=4.5,bw=chance(.5)?len:Math.min(len,R(6,len)),s=bw>=len?0:R(-(len-bw)/2,(len-bw)/2),[nx,nz]=NRM[side],tx=nz,tz=-nx,X=side<2;
+function balcony(B,T,cx,cz,side,len,dist,fy,opt={}){
+  const D=B.D,dep=4.5,bw=opt.full?len:Math.min(len,R(6,len)),s=bw>=len?0:R(-(len-bw)/2,(len-bw)/2),[nx,nz]=NRM[side],tx=nz,tz=-nx,X=side<2;
   const pt=(d,a)=>[cx+nx*d+tx*a,cz+nz*d+tz*a];
   const [px,pz]=pt(dist+dep/2,s);
-  B.wood.box(px,fy+.2,pz,X?dep:bw,.4,X?bw:dep,PLANK);addCol(px,fy+.2,pz,X?dep:bw,.4,X?bw:dep);
+  // the floor, as one board or with an opening along the wall where a flight of stairs comes up from below
+  const plank=(a0,a1,d0,d1)=>{if(a1-a0<.05||d1-d0<.05)return;const c=pt(dist+(d0+d1)/2,(a0+a1)/2);B.wood.box(c[0],fy+.2,c[1],X?d1-d0:a1-a0,.4,X?a1-a0:d1-d0,PLANK);addCol(c[0],fy+.2,c[1],X?d1-d0:a1-a0,.4,X?a1-a0:d1-d0)};
+  const L0=s-bw/2,L1=s+bw/2,HB=2.15;
+  if(opt.hole){const [h0,h1]=opt.hole;plank(L0,h0,0,dep);plank(h1,L1,0,dep);plank(h0,h1,HB,dep);
+    // guard rails round the opening: along its open side and across its far end
+    const g=pt(dist+HB,(h0+h1)/2);B.wood.box(g[0],fy+1.5,g[1],X?.2:h1-h0,.2,X?h1-h0:.2,DARK);B.wood.box(g[0],fy+.9,g[1],X?.14:h1-h0,.14,X?h1-h0:.14,DARK);
+    for(const a of[h0,(h0+h1)/2,h1]){const q=pt(dist+HB,a);B.wood.box(q[0],fy+.9,q[1],.26,1.4,.26,DARK)}
+    const e=pt(dist+HB/2,h0);B.wood.box(e[0],fy+1.5,e[1],X?HB:.2,.2,X?.2:HB,DARK);B.wood.box(e[0],fy+.9,e[1],X?HB:.14,.14,X?.14:HB,DARK);
+  }else plank(L0,L1,0,dep);
   const [fx,fz]=pt(dist+dep,s);
   B.wood.box(fx,fy+1.5,fz,X?.22:bw,.22,X?bw:.22,DARK);B.wood.box(fx,fy+.85,fz,X?.14:bw,.14,X?bw:.14,DARK);
   for(const e of[-1,1]){const [ex,ez]=pt(dist+dep/2,s+e*bw/2);B.wood.box(ex,fy+1.5,ez,X?dep:.22,.22,X?.22:dep,DARK)}
   const np=Math.max(2,Math.round(bw/3.5)+1);
   for(let i=0;i<np;i++){const [qx,qz]=pt(dist+dep,s-bw/2+bw*i/(np-1));B.wood.box(qx,fy+.95,qz,.3,1.5,.3,DARK)}
   for(const e of[-1,1]){const [qx,qz]=pt(dist+dep*.45,s+e*bw*.4);B.wood.box(qx,fy-dep*.45,qz,.35,dep*1.25,.35,DARK,new THREE.Quaternion().setFromUnitVectors(UP,new V3(nx,1,nz).normalize()))}
-  for(let i=RI(0,T.type==='res'?4:2);i>0;i--){const [qx,qz]=pt(dist+R(1,3.8),s+R(-.42,.42)*bw);D.wood.box(qx,fy+.7,qz,.7,.6,.7,pick(POTS));D.flat.at(ico0,qx,fy+1.5,qz,.8,R(.7,1.2),.8,chance(.25)?pick(PINKS):pick(GREENS),0,R(0,3))}
-  if(chance(T.type==='com'?.85:.6))for(let k=RI(1,2);k>0;k--){const [qx,qz]=pt(dist+1,s+R(-.45,.45)*bw);lantern(D,qx,fy+5.4,qz,1.25,LCOL(),RI(0,1))}
-  if(bw>8&&chance(.12)){const [qx,qz]=pt(dist+2.4,s+R(-.25,.25)*bw);blobTree(D,qx,fy+.4,qz,1.5,pick([PINKS,GREENS,AUTUMN]))}
+  let ps=s,pb=bw;const ex=opt.clear||opt.hole;
+  if(ex){const l=ex[0]-L0,r=L1-ex[1];if(l>=r){pb=l;ps=L0+l/2}else{pb=r;ps=ex[1]+r/2}}
+  for(let i=pb>2?RI(0,T.type==='res'?4:2):0;i>0;i--){const [qx,qz]=pt(dist+R(1,3.8),ps+R(-.42,.42)*pb);D.wood.box(qx,fy+.7,qz,.7,.6,.7,pick(POTS));D.flat.at(ico0,qx,fy+1.5,qz,.8,R(.7,1.2),.8,chance(.25)?pick(PINKS):pick(GREENS),0,R(0,3))}
+  if(pb>2&&chance(T.type==='com'?.85:.6))for(let k=RI(1,2);k>0;k--){const [qx,qz]=pt(dist+1,ps+R(-.45,.45)*pb);lantern(D,qx,fy+5.4,qz,1.25,LCOL(),RI(0,1))}
+  if(pb>8&&chance(.12)){const [qx,qz]=pt(dist+2.4,ps+R(-.25,.25)*pb);blobTree(D,qx,fy+.4,qz,1.5,pick([PINKS,GREENS,AUTUMN]))}
   if(T.type==='res'&&chance(.3)){ // laundry
     D.wood.box(fx,fy+3.3,fz,X?.06:bw,.06,X?bw:.06,DARK);
     for(const e of[-1,1]){const [qx,qz]=pt(dist+dep,s+e*bw/2);D.wood.box(qx,fy+2.5,qz,.16,1.8,.16,DARK)}
@@ -808,8 +887,18 @@ function balcony(B,T,cx,cz,side,len,dist,fy){
   if(chance(.2)){const a=s+R(-.4,.4)*bw,[qx,qz]=pt(dist+dep-.4,a),w=xfP(qx,qz);ropeP.push(w[0],fy,w[1],w[0],fy-1.3,w[1]);   // a pot hung under the deck
     D.wood.box(qx,fy-1.6,qz,.7,.55,.7,pick(POTS));D.flat.at(ico0,qx,fy-1.1,qz,.7,.5,.7,pick(GREENS),0,R(0,3));
     for(let k=0;k<4;k++)panel(D.cloth,qx,qz,R(0,1)<.5?2:0,.3,R(-.3,.3),.4,fy-1.9-R(.5,1.6),R(.8,1.8),pick(GREENS),0,1,1,0)}
-  balconyProps(D,T,cx,cz,side,dist,fy,dep,bw,s);
+  if(pb>2)balconyProps(D,T,cx,cz,side,dist,fy,dep,pb,ps);
   rec(T,{lx:px,lz:pz,fy,side,s,dist,dep,bw,cx,cz});
+}
+// a straight flight of stairs climbing one storey along the wall, inside the balcony band (treads, two stringers, a handrail)
+function flight(B,cx,cz,side,dist,a0,run,y0,fh){
+  const [nx,nz]=NRM[side],tx=nz,tz=-nx,X=side<2,n=Math.max(8,Math.round(fh/.55)),rise=fh/n,tr=run/n,dc=dist+1.15,wd=1.5,P=(o,a)=>[cx+nx*o+tx*a,cz+nz*o+tz*a];
+  for(let i=0;i<n;i++){const p=P(dc,a0+tr*(i+.5));B.wood.box(p[0],y0+rise*(i+1)-.1,p[1],X?wd:tr+.06,.16,X?tr+.06:wd,PLANK)}
+  const dv=new V3(tx*run,fh,tz*run),L=dv.length(),q=alongQ(dv.normalize());
+  for(const o of[dist+.38,dist+1.92]){const c=P(o,a0+run/2);B.wood.box(c[0],y0+fh/2-.2,c[1],.16,.5,L,DARK,q)}
+  const hr=P(dist+1.95,a0+run/2);B.wood.box(hr[0],y0+fh/2+1.35,hr[1],.14,.14,L,DARK,q);
+  for(let i=0;i<=n;i+=3){const p=P(dist+1.95,a0+tr*i);B.wood.box(p[0],y0+rise*i+.7,p[1],.16,1.4,.16,DARK)}
+  const m=P(dist+1.15,a0+run/2),wm=xfP(m[0],m[1]),wo=xfD(nx,nz);(window.__flights=window.__flights||[]).push([wm[0],y0+fh/2,wm[1],wo[0],wo[1]]);
 }
 // engawa: a veranda running right round one floor, its posts carrying an eave hung with lanterns
 function veranda(B,T,cx,cz,w,d,fy,fh){
@@ -827,10 +916,10 @@ function veranda(B,T,cx,cz,w,d,fy,fh){
     rec(T,{lx:cx+nx*(dist+dep/2),lz:cz+nz*(dist+dep/2),fy,side,s:0,dist,dep,bw:len,cx,cz})}
 }
 // a big deck cantilevered out on raking struts: garden, market or a little house standing on it
-function terrace(B,T,cx,cz,side,len,dist,fy,allowHouse){
-  const D=B.D,[nx,nz]=NRM[side],tx=nz,tz=-nx,X=side<2,dep=T.mid?R(8,13):R(11,20),bw=R(14,Math.max(16,len+10)),s=R(-.2,.2)*len;
+function terrace(B,T,cx,cz,side,len,dist,fy,allowHouse,link){
+  const D=B.D,[nx,nz]=NRM[side],tx=nz,tz=-nx,X=side<2,dep=link?R(9,13):T.mid?R(8,13):R(11,20),bw=R(14,Math.max(16,len+10)),s=link?0:R(-.2,.2)*len;
   const px=cx+nx*(dist+dep/2)+tx*s,pz=cz+nz*(dist+dep/2)+tz*s,sx=X?dep:bw,sz=X?bw:dep;
-  deck(B,px,fy,pz,sx,sz,[side^1]);
+  deck(B,px,fy,pz,sx,sz,[side^1,side]);
   const ns=Math.max(2,Math.round(bw/7)),L=Math.hypot(dep*.8,dep*.75),q=new THREE.Quaternion().setFromUnitVectors(UP,new V3(nx*dep*.8,dep*.75,nz*dep*.8).normalize());
   for(let i=0;i<ns;i++){const a=s-bw/2+bw*(i+.5)/ns;
     B.wood.box(cx+nx*(dist+dep*.5)+tx*a,fy-.3,cz+nz*(dist+dep*.5)+tz*a,X?dep:.6,.6,X?.6:dep,DARK);
@@ -841,14 +930,16 @@ function terrace(B,T,cx,cz,side,len,dist,fy,allowHouse){
     furnish(D,x0,z0,x1,z1,fy+.4,RI(4,8),false)}
   else if(k<.7){blobTree(D,px+R(-2,2),fy+.4,pz+R(-2,2),R(1.6,2.2),pick([PINKS,PINKS,GREENS,AUTUMN]));furnish(D,x0,z0,x1,z1,fy+.4,RI(7,13),true)}
   else{for(let i=RI(1,3);i>0;i--)stall(D,R(x0+1,x1-1),fy+.4,R(z0+1,z1-1));furnish(D,x0,z0,x1,z1,fy+.4,RI(4,8),false)}
+  for(let i=T.type==='com'?RI(6,14):RI(1,5);i>0;i--)person(D,R(x0,x1),fy+.4,R(z0,z1));   // people out on the terrace
   const P=a=>[cx+nx*(dist+dep-.6)+tx*(s+a),cz+nz*(dist+dep-.6)+tz*(s+a)],c0=P(-bw/2+.6),c1=P(bw/2-.6);
   for(const c of[c0,c1]){D.wood.box(c[0],fy+2.6,c[1],.22,4.4,.22,DARK);lantern(D,c[0],fy+5.2,c[1],1,LCOL(),2)}
   if(chance(.75))lanternRow(D,c0[0],fy+4.7,c0[1],c1[0],fy+4.7,c1[1],2.6,1.1,RI(0,1));
-  if(chance(.4))for(let a=-bw/2+2;a<bw/2-2;a+=R(3.5,6)){const p=P(a);D.wood.box(p[0],fy+4,p[1],.16,7.6,.16,DARK);banner(D,cx,cz,side,dist+dep-.45,s+a+.85,1.4,fy+1.6,5.6,RI(0,GENERAL.length-1),1.4)}
+  if(!link&&chance(.4))for(let a=-bw/2+2;a<bw/2-2;a+=R(3.5,6)){const p=P(a);D.wood.box(p[0],fy+4,p[1],.16,7.6,.16,DARK);banner(D,cx,cz,side,dist+dep-.45,s+a+.85,1.4,fy+1.6,5.6,RI(0,GENERAL.length-1),1.4)}
   if(chance(.6))for(let i=RI(2,4);i>0;i--)vine(D,cx,cz,side,dist+dep+.15,s+R(-.42,.42)*bw,fy+.2,R(3.5,6),true);
   else if(chance(.4))for(let i=RI(3,6);i>0;i--){const Lh=R(1.5,6);panel(D.cloth,cx,cz,side,dist+dep+.14,s+R(-.48,.48)*bw,R(.7,1.6),fy+.15-Lh,Lh,pick(GREENS),0,1,1,0)}
   const wp=xfP(cx+nx*(dist+dep)+tx*s,cz+nz*(dist+dep)+tz*s),wn=xfD(nx,nz);
-  terraces.push({p:new V3(wp[0],fy+.4,wp[1]),T,nx:wn[0],nz:wn[1],n:0});
+  terraces.push({p:new V3(wp[0],fy+.4,wp[1]),T,nx:wn[0],nz:wn[1],n:0,gaps:[],rail:{xf:XF,cx,cz,side,o:dist+dep,s,bw,fy}});
+  if(link)link.ends.push(terraces[terraces.length-1]);
   rec(T,{lx:px,lz:pz,fy,side,s,dist,dep,bw,cx,cz});
 }
 // a room hung off the side of the tower on struts
@@ -899,6 +990,7 @@ function shopfront(B,T,cx,cz,side,len,dist,y){
     D.cloth.quad([a[0],y+4.9,a[1]],[b[0],y+4.9,b[1]],[c[0],y+5.9,c[1]],[e[0],y+5.9,e[1]],pick(AWN),0,.3,1,0)}
   if(chance(.65)){const a=P(dist+2.3,-len/2+.5),b=P(dist+2.3,len/2-.5);lanternRow(D,a[0],y+4.8,a[1],b[0],y+4.8,b[1],2.8,.3,RI(0,1))}
   if(chance(.3))karahafu(B,cx,cz,side,dist+.2,R(-.25,.25)*len,y+6.1,Math.min(8,len*.4),3.4,1.7,T.rc);
+  for(let i=RI(1,T.type==='com'?6:2);i>0;i--){const a=P(dist+R(1.6,6.5),R(-.46,.46)*len);person(D,a[0],y,a[1])}   // shoppers
   const a0=P(dist+1.2,-len/2+1),a1=P(dist+3.6,len/2-1);
   furnish(D,Math.min(a0[0],a1[0]),Math.min(a0[1],a1[1]),Math.max(a0[0],a1[0]),Math.max(a0[1],a1[1]),y,RI(2,5),false);
 }
@@ -924,21 +1016,40 @@ function genTower(T,B){
     if(prev&&prev.neck)for(const a of[-1,1])for(const b of[-1,1]){   // struts carry the broad platform out over the neck below
       const p0=new V3(prev.cx+a*prev.w/2,y-Math.min(9,prev.h-1),prev.cz+b*prev.d/2),p1=new V3(cx+a*w*.44,y,cz+b*d*.44),dv=p1.clone().sub(p0),L=dv.length();
       B.wood.box((p0.x+p1.x)/2,(p0.y+p1.y)/2,(p0.z+p1.z)/2,.7,L,.7,DARK,new THREE.Quaternion().setFromUnitVectors(UP,dv.normalize()))}
-    const ms=!neck&&chance(mid?.35:.7)?RI(0,3):-1,ms2=!mid&&!neck&&chance(.35)?RI(0,3):-1;
+    let ms=!neck&&chance(mid?.35:.7)?RI(0,3):-1,ms2=!mid&&!neck&&chance(.35)?RI(0,3):-1;
     const open=[0,1,2,3].filter(s=>s!==ms&&s!==ms2).sort(()=>rand()-.5),nT=neck?0:mid?(chance(.55)?1:0):(chance(.92)?(chance(.55)?2:1):0),plan=[];
     for(let k=0;k<nT&&k<open.length;k++){if(seg===0&&floors<2)break;plan.push({side:open[k],f:RI(seg>0?0:1,floors-1)})}
+    for(const k of (T.links||[])){if(k.done||k.L.y<y+(seg?1:fh)||k.L.y>=y+h)continue;
+      const lx=XF.c*k.dx+XF.s*k.dz,lz=-XF.s*k.dx+XF.c*k.dz,side=Math.abs(lx)>Math.abs(lz)?(lx>0?0:1):(lz>0?2:3);   // the side facing the other tower, in this block's frame
+      const f=clamp(Math.round((k.L.y-y)/fh),seg?0:1,floors-1);if(plan.some(p=>p.f===f&&p.side===side&&p.link))continue;
+      for(let i=plan.length-1;i>=0;i--)if(plan[i].side===side)plan.splice(i,1);
+      if(ms===side)ms=-1;if(ms2===side)ms2=-1;
+      plan.push({side,f,link:k.L});k.done=true}
     const flagSides=open.filter(s=>!plan.some(p=>p.side===s));
+    // decide every floor first (veranda, terrace, balcony full-length or partial) so stairs can be planned before anything is built
+    const verF=[],kind=[];   // kind: 0 nothing, 1 short balcony, 2 full-length balcony, 3 terrace
+    for(let f=0;f<floors;f++){const up=seg>0||f>0;verF[f]=up&&!plan.some(p=>p.f===f)&&chance(neck?.6:mid?.3:.38);kind[f]=[];
+      for(let side=0;side<4;side++){const free=up&&!verF[f]&&side!==ms&&side!==ms2;kind[f][side]=!free?0:plan.some(p=>p.side===side&&p.f===f)?3:chance(.88)?(chance(.5)?2:1):0}}
+    // stairs between full-length balconies stacked on the same side; the flight runs along the wall inside the balcony,
+    // and the balcony above gets an opening in its floor where the flight comes up through it
+    const flights=[];
+    for(let side=0;side<4;side++){const len=side<2?d:w,run=fh*1.3;if(len<run+5)continue;
+      for(let f=0;f<floors-1;f++)if(kind[f][side]===2&&kind[f+1][side]===2&&chance(.45)){const a0=R(-len/2+1.2,len/2-run-1.2);flights.push({side,f,a0,a1:a0+run,run});break}}
     for(let f=0;f<floors;f++){
-      const fy=y+f*fh,up=seg>0||f>0,ground=!up,ver=up&&!plan.some(p=>p.f===f)&&chance(neck?.6:mid?.3:.38);
+      const fy=y+f*fh,up=seg>0||f>0,ground=!up,ver=verF[f];
       B.wood.box(cx,fy+.3,cz,w+1,.6,d+1,DARK);
       if(ver)veranda(B,T,cx,cz,w,d,fy,fh);
-      else if(f>0&&chance(.3))roof(B.roof,cx,fy-.9,cz,w,d,w+6,d+6,1.9,T.rc,.9,2);
+      else if(f>0&&!flights.some(t=>t.f===f-1)&&chance(.3))roof(B.roof,cx,fy-.9,cz,w,d,w+6,d+6,1.9,T.rc,.9,2);   // no skirt roof where a stairwell comes up
       for(let side=0;side<4;side++){
         const len=side<2?d:w,dist=(side<2?w:d)/2,[nx,nz]=NRM[side],tx=nz,tz=-nx,free=up&&!ver&&side!==ms&&side!==ms2,tp=plan.find(p=>p.side===side&&p.f===f);
-        bays(B,T,cx,cz,side,len,dist,fy,ver,ground,fh);
+        const lo=flights.find(t=>t.side===side&&t.f===f),hi=flights.find(t=>t.side===side&&t.f===f-1);
+        bays(B,T,cx,cz,side,len,dist,fy,ver||!!lo,ground,fh);   // no little window eaves along a wall with a flight on it
         if(ground)shopfront(B,T,cx,cz,side,len,dist,fy);
-        if(free&&tp)terrace(B,T,cx,cz,side,len,dist,fy,f<floors-1);
-        else if(free&&chance(.88))balcony(B,T,cx,cz,side,len,dist,fy);
+        if(free&&tp)terrace(B,T,cx,cz,side,len,dist,fy,f<floors-1,tp.link);
+        else if(free&&kind[f][side]){
+          balcony(B,T,cx,cz,side,len,dist,fy,{full:kind[f][side]===2,clear:lo?[lo.a0-.9,lo.a1+.9]:null,hole:hi?[hi.a1-hi.run*.55,hi.a1+.15]:null});
+          if(lo)flight(B,cx,cz,side,dist,lo.a0,lo.run,fy+.4,fh);
+        }
         if(f===0&&chance(.45)){const a=(chance(.5)?1:-1)*(len/2-1.6);B.wood.box(cx+nx*(dist+.45)+tx*a,y+h/2,cz+nz*(dist+.45)+tz*a,.36,h,.36,PIPE)}
         if(f===floors-1&&!ver&&chance(T.type==='com'?.5:.25)){const a=[cx+nx*(dist+2.7)-tx*len/2,cz+nz*(dist+2.7)-tz*len/2],b=[cx+nx*(dist+2.7)+tx*len/2,cz+nz*(dist+2.7)+tz*len/2];
           lanternRow(B.D,a[0],fy+fh-.7,a[1],b[0],fy+fh-.7,b[1],3,.5,RI(0,1))}
@@ -946,7 +1057,6 @@ function genTower(T,B){
     }
     if(ms>=0)sideHouse(B,T,cx,cz,ms,y,h,w,d);
     if(ms2>=0&&ms2!==ms)sideHouse(B,T,cx,cz,ms2,y,h,w,d);
-    if(chance(.35))stairs(B,cx,cz,RI(0,3),w,d,y+RI(0,floors-1)*fh,fh);
     if(chance(.55)){const side=flagSides.length?pick(flagSides):RI(0,3),len=side<2?d:w,dist=(side<2?w:d)/2,bh=Math.min(h-2,R(10,22));
       if(bh>5)banner(B,cx,cz,side,dist+.7,R(-.35,.35)*len,bh/3.6,y+h-1.5-bh,bh,RI(0,GENERAL.length-1),1.2)}
     if(flagSides.length&&chance(T.type==='com'?.6:.35))for(let k=RI(1,2);k>0;k--){
@@ -1020,12 +1130,20 @@ function genTower(T,B){
   for(const b of T.balconies)if(!b.used&&b.bw>5&&b.fy>20)allBalconies.push(b);
 }
 // tower placement
+const links=[];
 {let tries=0;
  while(towers.length<NTOWER&&tries++<20000){
   const first=towers.length===0,a=R(0,6.283),r=first?0:Math.sqrt(rand())*560,x=Math.cos(a)*r,z=Math.sin(a)*r;
   if(towers.some(t=>Math.hypot(t.x-x,t.z-z)<(tries>12000?92:108)))continue;
   towers.push({x,z,w:R(24,40),d:R(24,40),h:first?430:R(240,720),type:r<260?'com':'res',rc:pick(ROOFS),name:towerNames[towers.length],cell:GENERAL.length+towers.length,balconies:[]});
  }
+ // bridges between neighbouring towers are decided first, so each end can be given a terrace facing the other tower
+ {let na=0,nw=0;
+  for(let i=0;i<towers.length;i++)for(let j=i+1;j<towers.length;j++){const A=towers[i],Bt=towers[j],dx=Bt.x-A.x,dz=Bt.z-A.z,dist=Math.hypot(dx,dz);if(dist>150)continue;
+    const top=Math.min(A.h,Bt.h),add=(style,y)=>{const L={style,y,ends:[]};links.push(L);(A.links=A.links||[]).push({L,dx:dx/dist,dz:dz/dist});(Bt.links=Bt.links||[]).push({L,dx:-dx/dist,dz:-dz/dist})};
+    if(na<24&&chance(.7)){na++;add('arch',top*R(.3,.85))}
+    for(let q=0;q<2;q++)if(nw<36&&chance(.55)){nw++;add('walk',top*R(.15,.9))}
+  }}
  for(const T of towers){const B=bufs2();genTower(T,B);addBufs(B);addDetail(B)}
 }
 
@@ -1068,8 +1186,8 @@ const tb=(x,z)=>{const k=Math.floor((x+1200)/480)+','+Math.floor((z+1200)/480);r
     // the street edges: clutter, people, lamps, strings of lanterns overhead
     furnish(D,lx+13.6,lz-13,lx+15.2,lz+13,0,RI(1,com?5:3),false);
     furnish(D,lx-13,lz+13.6,lx+13,lz+15.2,0,RI(1,com?4:2),false);
-    if(chance(.5))person(D,lx+19+R(-4,4),0,lz+R(-14,14));
-    if(chance(.5))person(D,lx+R(-14,14),0,lz+19+R(-4,4));
+    for(let i=RI(com?2:0,com?6:2);i>0;i--)person(D,lx+19+R(-4.5,4.5),0,lz+R(-16,16));
+    for(let i=RI(com?2:0,com?6:2);i>0;i--)person(D,lx+R(-16,16),0,lz+19+R(-4.5,4.5));
     if(chance(.55)){D.wood.box(lx+14.5,1.5,lz+14.5,.2,3,.2,DARK);lantern(D,lx+14.5,3.5,lz+14.5,1,LCREAM,2)}
     if(chance(com?.5:.2)){const zz=lz+R(-12,12),hh=R(5.6,6.6);lanternRow(D,lx+13.2,hh,zz,lx+24.8,hh,zz,2.6,.6,RI(0,1))}
     if(chance(com?.45:.15)){const xx=lx+R(-12,12),hh=R(5.6,6.6);lanternRow(D,xx,hh,lz+13.2,xx,hh,lz+24.8,2.6,.6,RI(0,1))}
@@ -1082,14 +1200,43 @@ const tb=(x,z)=>{const k=Math.floor((x+1200)/480)+','+Math.floor((z+1200)/480);r
     for(let i=0;i<500;i++){g.fillStyle=`rgba(${trand()<.5?'120,95,70':'255,250,235'},${.04+trand()*.08})`;const s=6+trand()*26;g.fillRect(trand()*w,trand()*h,s,s*(.5+trand()))}
     g.strokeStyle='rgba(110,85,60,.22)';g.lineWidth=1.5;for(let i=0;i<=8;i++){g.beginPath();g.moveTo(0,i*32);g.lineTo(w,i*32);g.stroke();for(let j=0;j<4;j++){const x=j*64+(i%2)*32;g.beginPath();g.moveTo(x,i*32);g.lineTo(x,i*32+32);g.stroke()}}});
   paveTex.repeat.set(130,130);
-  const near=new THREE.Mesh(new THREE.CircleGeometry(TOWN_R+70,72),new THREE.MeshLambertMaterial({map:paveTex}));near.rotation.x=-Math.PI/2;near.receiveShadow=true;scene.add(near);
+  const near=new THREE.Mesh(new THREE.CircleGeometry(TOWN_R+70,72),(()=>{const m=new THREE.MeshLambertMaterial({map:paveTex});washify(m);return m})());near.rotation.x=-Math.PI/2;near.receiveShadow=true;scene.add(near);
   groundTex.repeat.set(52,52);
-  const far=new THREE.Mesh(new THREE.RingGeometry(TOWN_R+70,15000,72,1),new THREE.MeshLambertMaterial({map:groundTex}));far.rotation.x=-Math.PI/2;scene.add(far);
+  const far=new THREE.Mesh(new THREE.RingGeometry(TOWN_R+70,15000,72,1),(()=>{const m=new THREE.MeshLambertMaterial({map:groundTex});washify(m);return m})());far.rotation.x=-Math.PI/2;scene.add(far);
 }
 
-// point a box's long (z) axis along d with its up axis kept as close to world-up as possible: bridges pitch along their length but never roll
-const _m4=new THREE.Matrix4(),_o3=new V3(),_t3=new V3();
-const alongQ=d=>new THREE.Quaternion().setFromRotationMatrix(_m4.lookAt(_o3,_t3.copy(d).negate(),UP));
+// an arched vermilion bridge between two points, rising a little in the middle
+function archBridge(B,a,b){
+  const d=new V3().subVectors(b,a),dist=Math.hypot(d.x,d.z),dir=new V3(d.x,0,d.z).normalize(),sv=new V3(-dir.z,0,dir.x),n=Math.max(8,Math.round(dist/4)),arc=Math.min(7,dist*.08);let prev=null;
+  for(let k=0;k<=n;k++){const t=k/n,p=new V3(a.x+d.x*t,a.y+d.y*t+Math.sin(t*Math.PI)*arc-.2,a.z+d.z*t);
+    if(prev){const mid=p.clone().add(prev).multiplyScalar(.5),sd=p.clone().sub(prev),L=sd.length(),q=alongQ(sd.normalize());
+      B.wood.box(mid.x,mid.y,mid.z,3.4,.45,L+.1,RED,q);
+      for(const e of[-1,1]){B.wood.box(mid.x+sv.x*1.7*e,mid.y+1.4,mid.z+sv.z*1.7*e,.2,.2,L+.1,RED,q);B.wood.box(mid.x+sv.x*1.7*e,mid.y+.7,mid.z+sv.z*1.7*e,.25,1.4,.25,RED)}
+      if(k%2===0)addCol(mid.x,mid.y-.2,mid.z,5,1.2,5);
+      if(k>2&&k<n-2&&chance(.45))person(B,mid.x+sv.x*R(-1,1),mid.y+.25,mid.z+sv.z*R(-1,1));
+      if(k%3===0)lantern(B,mid.x+sv.x*1.7,mid.y+2.1,mid.z+sv.z*1.7,.8,LCOL(),2)}
+    prev=p}
+}
+// a broad plank walkway between two points, with lantern gateposts along it: a street in the sky
+function walkBridge(B,a,b){
+  const d=new V3().subVectors(b,a),L=d.length(),q=alongQ(d.clone().normalize()),dir=new V3(d.x,0,d.z).normalize(),sv=new V3(-dir.z,0,dir.x),mid=new V3().addVectors(a,b).multiplyScalar(.5);
+  B.wood.box(mid.x,mid.y-.2,mid.z,4.2,.4,L,PLANK,q);
+  for(const e of[-1,1])B.wood.box(mid.x+sv.x*2.1*e,mid.y+1.2,mid.z+sv.z*2.1*e,.2,.2,L,DARK,q);
+  for(let t=5;t<L-4;t+=6){const p=new V3().lerpVectors(a,b,t/L);
+    for(const e of[-1,1])B.wood.box(p.x+sv.x*2.1*e,p.y+1.7,p.z+sv.z*2.1*e,.26,3.8,.26,DARK);
+    B.wood.box(p.x,p.y+3.6,p.z,.3,.3,4.6,DARK,alongQ(sv));lantern(B,p.x,p.y+2.8,p.z,.9,LCOL(),1);
+    addCol(p.x,p.y-.2,p.z,6,1,6);if(chance(.3))person(B,p.x+sv.x*R(-1.3,1.3),p.y,p.z+sv.z*R(-1.3,1.3))}
+}
+// the outer railing of a terrace, with an opening (and stout end posts) wherever a footbridge lands
+function edgeRail(B,r,gaps){
+  XF=r.xf;const [nx,nz]=NRM[r.side],tx=nz,tz=-nx,X=r.side<2,P=a=>[r.cx+nx*r.o+tx*(r.s+a),r.cz+nz*r.o+tz*(r.s+a)],g=gaps.length?Math.max(...gaps)/2:0;
+  const runs=g?[[-r.bw/2,-g],[g,r.bw/2]]:[[-r.bw/2,r.bw/2]];
+  for(const [a,b] of runs){if(b-a<.3)continue;const m=P((a+b)/2),L=b-a;
+    B.wood.box(m[0],r.fy+1.55,m[1],X?.22:L,.22,X?L:.22,DARK);B.wood.box(m[0],r.fy+.95,m[1],X?.14:L,.14,X?L:.14,DARK);
+    const n=Math.max(2,Math.round(L/3.5)+1);for(let k=0;k<n;k++){const p=P(a+L*k/(n-1));B.wood.box(p[0],r.fy+1,p[1],.3,1.6,.3,DARK)}}
+  if(g)for(const e of[-g,g]){const p=P(e);B.wood.box(p[0],r.fy+1.2,p[1],.45,2.4,.45,DARK)}
+  XF=null;
+}
 // a plank (or vermilion) footbridge between two terrace edges
 function skyBridge(B,a,b){
   const d=new V3().subVectors(b,a),L=d.length(),dir=d.clone().normalize(),q=alongQ(dir),side=new V3(-dir.z,0,dir.x).normalize();
@@ -1109,32 +1256,10 @@ function skyBridge(B,a,b){
 // shared static geometry: bridges, walkways, lantern ropes, far towers, world tree
 const S=newBufs();
 {
-  let nb=0,nr=0,nw=0;
+  let nr=0;
   for(let i=0;i<towers.length;i++)for(let j=i+1;j<towers.length;j++){
     const A=towers[i],Bt=towers[j],dx=Bt.x-A.x,dz=Bt.z-A.z,dist=Math.hypot(dx,dz);if(dist>150)continue;
     const top=Math.min(A.h,Bt.h),dir=new V3(dx,0,dz).normalize(),sidev=new V3(-dir.z,0,dir.x);
-    if(nb<22&&chance(.7)){nb++; // arched red bridge
-      const by=top*R(.3,.85),n=18,arc=7;let prev=null;
-      for(let k=0;k<=n;k++){const t=k/n,p=new V3(A.x+dx*t,by+Math.sin(t*Math.PI)*arc,A.z+dz*t);
-        if(prev){const mid=p.clone().add(prev).multiplyScalar(.5),sd=p.clone().sub(prev),L=sd.length(),q=alongQ(sd.normalize());
-          S.wood.box(mid.x,mid.y,mid.z,3.4,.45,L+.1,RED,q);
-          for(const e of[-1,1]){S.wood.box(mid.x+sidev.x*1.7*e,mid.y+1.4,mid.z+sidev.z*1.7*e,.2,.2,L+.1,RED,q);S.wood.box(mid.x+sidev.x*1.7*e,mid.y+.7,mid.z+sidev.z*1.7*e,.25,1.4,.25,RED)}
-          if(k%2===0)addCol(mid.x,mid.y-.2,mid.z,5,1.2,5);
-          if(k>3&&k<n-3&&chance(.45))person(S,mid.x+sidev.x*R(-1,1),mid.y+.25,mid.z+sidev.z*R(-1,1));
-          if(k%3===0)lantern(S,mid.x+sidev.x*1.7,mid.y+2.1,mid.z+sidev.z*1.7,.8,LCOL(),2)}
-        prev=p}
-    }
-    for(let q2=0;q2<2;q2++)if(nw<34&&chance(.55)){nw++; // level plank walkway hung with lanterns: a street in the sky
-      const wy=Math.round(top*R(.15,.9)/7)*7+.3,off=R(-9,9),q=alongQ(dir),mx=A.x+dx/2+sidev.x*off,mz=A.z+dz/2+sidev.z*off;
-      S.wood.box(mx,wy,mz,4.2,.4,dist,PLANK,q);
-      for(const e of[-1,1])S.wood.box(mx+sidev.x*2.1*e,wy+1.4,mz+sidev.z*2.1*e,.2,.2,dist,DARK,q);
-      for(let t=6;t<dist-5;t+=6){const px=A.x+dir.x*t+sidev.x*off,pz=A.z+dir.z*t+sidev.z*off;
-        for(const e of[-1,1])S.wood.box(px+sidev.x*2.1*e,wy+1.9,pz+sidev.z*2.1*e,.26,3.8,.26,DARK);
-        S.wood.box(px,wy+3.8,pz,.3,.3,4.6,DARK,alongQ(sidev));
-        lantern(S,px,wy+3,pz,.9,LCOL(),1);
-        addCol(px,wy,pz,6,1,6);
-        if(chance(.3))person(S,px+sidev.x*R(-1.3,1.3),wy+.2,pz+sidev.z*R(-1.3,1.3))}
-    }
     for(let q=0;q<3;q++)if(nr<70&&chance(.6)){nr++; // rope of lanterns
       const ya=top*R(.2,.95),yb=clamp(ya+R(-40,40),20,top),off=R(-8,8),n=Math.round(dist/9),sag=R(6,14);let prev=null;const kd=RI(0,1);
       for(let k=0;k<=n;k++){const t=k/n,p=new V3(A.x+dx*t+sidev.x*off,lerp(ya,yb,t)-Math.sin(t*Math.PI)*sag,A.z+dz*t+sidev.z*off);
@@ -1142,6 +1267,15 @@ const S=newBufs();
         if(k>1&&k<n-1)lantern(S,p.x,p.y-1.1,p.z,1.1,k%3?LRED:LCREAM,kd)}
     }
   }
+  // the planned links between towers: an arched vermilion bridge or a lantern-hung walkway, from terrace edge to terrace edge
+  {let n=0;
+   for(const L of links){if(L.ends.length<2)continue;const [a,b]=L.ends,dx=b.p.x-a.p.x,dz=b.p.z-a.p.z,dh=Math.hypot(dx,dz);if(dh<10)continue;
+     let ok=true;const steps=Math.ceil(dh/3);
+     for(let k=1;k<steps&&ok;k++){const t=k/steps,al=t*dh;if(al<3||al>dh-3)continue;if(hitTest(lerp(a.p.x,b.p.x,t),lerp(a.p.y,b.p.y,t)+1.3,lerp(a.p.z,b.p.z,t),1.6))ok=false}
+     if(!ok)continue;
+     if(L.style==='arch')archBridge(S,a.p,b.p);else walkBridge(S,a.p,b.p);(window.__linkEnds=window.__linkEnds||[]).push([a,b,L.style]);
+     const ux=dx/dh,uz=dz/dh,wd=L.style==='arch'?4.2:5;a.gaps.push(wd/Math.max(ux*a.nx+uz*a.nz,.45)+.9);b.gaps.push(wd/Math.max(-ux*b.nx-uz*b.nz,.45)+.9);a.n++;b.n++;n++}
+   window.__links=n+'/'+links.length}
   // footbridges between terraces that face each other across the gap
   {const pairs=[];
    for(let i=0;i<terraces.length;i++)for(let j=i+1;j<terraces.length;j++){const a=terraces[i],b=terraces[j];if(a.T===b.T)continue;
@@ -1151,8 +1285,10 @@ const S=newBufs();
    for(const [dh,a,b] of pairs){if(n>=180)break;if(a.n>=2||b.n>=2)continue;
      const steps=Math.ceil(dh/3);let ok=true;
      for(let k=1;k<steps&&ok;k++){const t=k/steps,al=t*dh;if(al<2.6||al>dh-2.6)continue;if(hitTest(lerp(a.p.x,b.p.x,t),lerp(a.p.y,b.p.y,t)+1.3,lerp(a.p.z,b.p.z,t),1.5))ok=false}
-     if(!ok)continue;a.n++;b.n++;n++;skyBridge(S,a.p,b.p)}
-   window.__bridges=n}
+     if(!ok)continue;a.n++;b.n++;n++;skyBridge(S,a.p,b.p);
+     const dx=(b.p.x-a.p.x)/dh,dz=(b.p.z-a.p.z)/dh;a.gaps.push(3.6/Math.max(dx*a.nx+dz*a.nz,.45)+.9);b.gaps.push(3.6/Math.max(-dx*b.nx-dz*b.nz,.45)+.9)}
+   window.__bridges=n;
+   for(const t of terraces)edgeRail(S,t.rail,t.gaps)}
   // far silhouette towers, in three rings so the skyline is full in every direction; the further out, the taller and the coarser
   //   [count, inner radius, outer radius, min height, max height, min width, max width, storeys per facade panel]
   const placed=[];
@@ -1165,7 +1301,7 @@ const S=newBufs();
       let w=R(w0,w1),y=0;const H=R(h0,h1),rc=pick(ROOFS),step=7*fs;placed.push([x,z,w]);made++;
       const yaw=R(0,6.283);XF={c:Math.cos(yaw),s:Math.sin(yaw),x,z};   // each one at its own angle, built around its own centre
       let tw=0;
-      while(y<H){const h=RI(3,7)*7*Math.max(1,fs-.5);w=clamp(w+R(-8,8)*fs,w0*.8,w1*1.1);
+      while(y<H){const h=RI(3,7)*7*Math.max(1,fs-.5);w=clamp(w*R(.86,1.02)+R(-5,5)*fs,w0*.55,w1*1.1);   // tapering like a pagoda
         if(chance(.5)){tw+=R(-.15,.15);XF={c:Math.cos(yaw+tw),s:Math.sin(yaw+tw),x,z}}
         S.wood.box(0,y+h/2,0,w,h,w,pick(WOODS));addCol(0,y+h/2,0,w,h,w);
         {const np=Math.max(2,Math.round(w/(9*Math.min(fs,2)))),pw=w/np;
@@ -1173,8 +1309,11 @@ const S=newBufs();
             const u=facUV(RI(0,31));panel(S.fac,0,0,side,w/2+.25,-w/2+pw*(k+.5),pw-.6,fy,step-.7,chance(.7)?LITC:UNLIT,u[0],u[1],u[2],u[3])}}
         if(chance(.55)){const side=RI(0,3),[nx,nz]=NRM[side],dp=R(8,14)*fs;S.wood.box(nx*(w/2+dp/2),y+7.2*fs,nz*(w/2+dp/2),side<2?dp:w*.8,.5*fs,side<2?w*.8:dp,PLANK)}
         if(fs===1&&chance(.3)){const side=RI(0,3),[nx,nz]=NRM[side],tx=nz,tz=-nx,fl=R(16,28);if(y+h-fl>4){const o=R(-w/3,w/3),a2=[nx*(w/2+5)+tx*o,nz*(w/2+5)+tz*o];flagQuad(S,a2[0],a2[1],a2[0]+nx*fl/4,a2[1]+nz*fl/4,y+h-1-fl,y+h-1,RI(0,GENERAL.length-1),fl/7)}}
-        y+=h;roof(S.roof,0,y-1.2*fs,0,w,w,w+10*fs,w+10*fs,3*fs,rc,1.5*fs,2)}
-      roof(S.roof,0,y,0,.3,.3,w+12*fs,w+12*fs,12*fs,rc,2.6*fs,3);
+        y+=h;roof(S.roof,0,y-1.4*fs,0,w,w,w+R(17,26)*fs,w+R(17,26)*fs,4*fs,rc,2.8*fs,2)}   // wide tiered eaves read as pagodas in silhouette
+      roof(S.roof,0,y,0,.3,.3,w+16*fs,w+16*fs,13*fs,rc,3*fs,3);
+      {const sh=R(16,26)*fs;S.wood.box(0,y+11*fs+sh/2,0,.9*fs,sh,.9*fs,DARK);   // spire with rings (sorin)
+       for(let k=0;k<5;k++)S.wood.box(0,y+12*fs+k*sh*.13,0,(3.2-k*.35)*fs,.5*fs,(3.2-k*.35)*fs,DARK);
+       S.glow.at(ico0,0,y+11*fs+sh,0,1.1*fs,1.4*fs,1.1*fs,C('#f0c85a'))}
       XF=null;
     }
   }
@@ -1184,24 +1323,44 @@ const S=newBufs();
 // world tree, growing from a hill at the edge of town
 const TREE=new V3(-1500,0,-1500),toriiPos=new V3();
 {
-  const bark=C('#8a6a55'),moss=C('#7ba36c');
-  S.flat.at(new THREE.CylinderGeometry(55,120,900,12,6),TREE.x,450,TREE.z,1,1,1,bark);addCol(TREE.x,450,TREE.z,150,900,150);
-  for(let i=0;i<7;i++){const a=i/7*6.283+R(0,.5);S.flat.at(new THREE.CylinderGeometry(18,50,260,6),TREE.x+Math.cos(a)*120,60,TREE.z+Math.sin(a)*120,1,1,1,bark,Math.sin(a)*-.6,0,Math.cos(a)*.6)}
-  for(let i=0;i<8;i++){const a=i/8*6.283+R(0,.5);S.flat.at(new THREE.CylinderGeometry(14,30,420,6),TREE.x+Math.cos(a)*170,880,TREE.z+Math.sin(a)*170,1,1,1,bark,Math.sin(a)*.9,0,-Math.cos(a)*.9)}
-  for(let i=0;i<60;i++){const a=R(0,6.283),r=Math.sqrt(rand())*620,s=R(150,300);S.flat.at(ico1,TREE.x+Math.cos(a)*r,960+R(-60,160)-r*.25,TREE.z+Math.sin(a)*r,s,s*.55,s,pick(GREENS),0,R(0,3))}
+  const bark=C('#8a6a55'),barkD=C('#6b5242'),moss=C('#7ba36c'),H=920,rAt=y=>125-68*y/H;
+  S.flat.at(new THREE.CylinderGeometry(57,125,H,20,10),TREE.x,H/2,TREE.z,1,1,1,bark);addCol(TREE.x,H/2,TREE.z,160,H,160);
+  // buttress roots spreading over the hill
+  for(let i=0;i<11;i++){const a=i/11*6.283+R(-.2,.2),L=R(200,320);
+    S.flat.at(new THREE.CylinderGeometry(14,R(40,62),L,7),TREE.x+Math.cos(a)*(110+L*.22),L*.18,TREE.z+Math.sin(a)*(110+L*.22),1,1,1,chance(.5)?bark:barkD,Math.sin(a)*-1.15,0,Math.cos(a)*1.15)}
+  // long branches reaching out under the canopy, with smaller ones off them
+  for(let i=0;i<12;i++){const a=i/12*6.283+R(-.2,.2),y=R(620,880),L=R(340,480),r=rAt(y)+L*.38;
+    S.flat.at(new THREE.CylinderGeometry(8,28,L,7),TREE.x+Math.cos(a)*r,y+L*.22,TREE.z+Math.sin(a)*r,1,1,1,bark,Math.sin(a)*.95,0,-Math.cos(a)*.95);
+    for(let k=0;k<2;k++){const b2=a+R(-.5,.5),r2=r+R(40,140);S.flat.at(new THREE.CylinderGeometry(4,11,R(140,220),6),TREE.x+Math.cos(b2)*r2,y+L*.32+R(20,60),TREE.z+Math.sin(b2)*r2,1,1,1,barkD,Math.sin(b2)*.7,0,-Math.cos(b2)*.7)}}
+  // canopy: a darker mass inside, painted foliage over it
+  for(let i=0;i<16;i++){const a=R(0,6.283),r=Math.sqrt(rand())*380,s=R(100,170);S.flat.at(ico1,TREE.x+Math.cos(a)*r,R(930,1080)-r*.15,TREE.z+Math.sin(a)*r,s,s*.55,s,pick([GREENS[3],GREENS[1],C('#3f6448')]),0,R(0,3))}
+  for(let i=0;i<120;i++){const a=R(0,6.283),r=Math.sqrt(rand())*660,u=r/700;
+    addSprite(SPRS.trees,TREE.x+Math.cos(a)*r,860+270*Math.sqrt(Math.max(0,1-u*u))+R(-40,40),TREE.z+Math.sin(a)*r,R(210,380)*(1-.3*u),40+(u>.75?pick([1,2,2]):RI(0,2)),.5,chance(.5)?1:-1)}
+  for(let i=0;i<40;i++){const a=R(0,6.283),r=R(560,720);addSprite(SPRS.trees,TREE.x+Math.cos(a)*r,R(800,880),TREE.z+Math.sin(a)*r,R(180,280),42,.5,chance(.5)?1:-1)}   // drooping outer edge
   S.flat.at(ico1,TREE.x,-25,TREE.z,640,75,640,moss);
   for(let i=0;i<70;i++){const a=R(0,6.283),r=R(180,600);addSprite(SPRS.trees,TREE.x+Math.cos(a)*r,Math.max(4,48-r*.07),TREE.z+Math.sin(a)*r,R(16,30),treeCell(chance(.5)?PINKS:GREENS),0,chance(.5)?1:-1)}
+  // two rings of platforms round the trunk: decks on struts, little houses, lanterns, people
+  for(const hy of[300,640]){const rr=rAt(hy)+6,n=12,sl=2*Math.PI*rr/n+1.2;
+    for(let k=0;k<n;k++){const a=k/n*6.283;XF={c:Math.cos(a),s:Math.sin(a),x:TREE.x,z:TREE.z};
+      deck(S,rr,hy,0,12,sl,[1,2,3]);
+      const p0=new V3(rr-5.5,hy-15,0),p1=new V3(rr+4.5,hy-.2,0),dv=p1.clone().sub(p0);S.wood.box((p0.x+p1.x)/2,(p0.y+p1.y)/2,0,.9,dv.length(),.9,DARK,new THREE.Quaternion().setFromUnitVectors(UP,dv.normalize()));
+      if(k%3===0)house(S,rr+1.4,hy+.4,0,9.6,9.6,chance(.5)?2:1,pick(ROOFS),k%6===0,true);
+      else{lanternRow(S,rr+5.8,hy+4.6,-sl/2,rr+5.8,hy+4.6,sl/2,2.6,.7,RI(0,1));for(let j=RI(0,3);j>0;j--)person(S,rr+R(-4,4.5),hy+.4,R(-sl/3,sl/3))}
+      S.wood.box(rr+5.8,hy+2.6,sl/2,.22,4.4,.22,DARK);
+    }
+    XF=null;
+  }
   const dir=new V3(-TREE.x,0,-TREE.z).normalize(),px=TREE.x+dir.x*118,pz=TREE.z+dir.z*118,py=430;
   S.wood.box(px,py,pz,46,1.2,46,PLANK);addCol(px,py,pz,46,1.2,46);
   const sv=new V3(-dir.z,0,dir.x),q=new THREE.Quaternion().setFromEuler(new THREE.Euler(0,Math.atan2(dir.x,dir.z),0));
   const tx0=px+dir.x*14,tz0=pz+dir.z*14;
-  for(const e of[-1,1])S.wood.box(tx0+sv.x*6*e,py+8,tz0+sv.z*6*e,1.3,16,1.3,C('#c8452c'),q);
-  S.wood.box(tx0,py+16.5,tz0,17,1.3,1.6,C('#c8452c'),q);S.wood.box(tx0,py+13,tz0,14,.9,1,C('#c8452c'),q);S.wood.box(tx0,py+17.5,tz0,18.5,.7,2,DARK,q);
+  for(const e of[-1,1])S.wood.box(tx0+sv.x*6*e,py+8,tz0+sv.z*6*e,1.3,16,1.3,C('#d98c74'),q);
+  S.wood.box(tx0,py+16.5,tz0,17,1.3,1.6,C('#d98c74'),q);S.wood.box(tx0,py+13,tz0,14,.9,1,C('#d98c74'),q);S.wood.box(tx0,py+17.5,tz0,18.5,.7,2,DARK,q);
   for(const e of[-1,1])lantern(S,tx0+sv.x*9*e,py+3,tz0+sv.z*9*e,2.2,LCREAM);
   toriiPos.set(tx0,py+7,tz0);
 }
 addBufs(S);
-const spPeople=spriteMesh(SPRS.people,700,false,SC.people),spTrees=spriteMesh(SPRS.trees,3400,false,SC.tree);
+const spPeople=spriteMesh(SPRS.people,700,false,SC.people),spTrees=spriteMesh(SPRS.trees,5600,false,SC.tree);
 // lantern glow halos (night)
 const haloMat=new THREE.PointsMaterial({map:glowTex,size:9,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,color:0xffa050});
 {const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(lanternPts,3));const p=new THREE.Points(g,haloMat);p.frustumCulled=false;scene.add(p)}
@@ -1380,7 +1539,7 @@ const flyMesh=spriteMesh(flyArr,1700,true,SC.fly),flyPos=flyMesh.geometry.attrib
 // people walking the streets below
 const walkers=[],walkArr=[];
 {let guard=0;
- while(walkers.length<420&&guard++<8000){
+ while(walkers.length<900&&guard++<16000){
    const a=chance(.5)?0:1,c=(RI(-20,20)+.5)*LOT+R(-3.5,3.5),p0=R(-720,720),at=p=>a?[p,c]:[c,p],ok=p=>{const [x,z]=at(p);return Math.hypot(x,z)<TOWN_R-10&&!hitTest(x,1.5,z,1.3)};
    if(!ok(p0))continue;let lo=p0,hi=p0;while(hi-p0<140&&ok(hi+5))hi+=5;while(p0-lo<140&&ok(lo-5))lo-=5;if(hi-lo<30)continue;
    walkers.push({a,c,lo,hi,p:p0,v:R(2.2,4.5)*(chance(.5)?1:-1),ph:R(0,6)});addSprite(walkArr,0,-999,0,R(1.8,2),RI(0,7),0,chance(.5)?1:-1);
@@ -1389,18 +1548,26 @@ const walkMesh=spriteMesh(walkArr,700,true,SC.people),walkPos=walkMesh.geometry.
 
 /* ---------- cats ---------- */
 const CATK=[['橘貓','#e8a85a','#f6ead8'],['三花貓','#f6ead8','#e0914a'],['黑貓','#2a2625','#2a2625'],['白貓','#f8f4ec','#f8f4ec'],['虎斑貓','#9a8a72','#6a5a48'],['灰貓','#8d939c','#c9ccd2']];
+const CAT_CELL=[20,21,22,23,43,44];   // sprite-atlas cells for the painted cats, one per coat
+CATK.forEach((k,i)=>spCell(CAT_CELL[i],g=>{   // simple drawn cats until the paintings load
+  g.fillStyle=k[1];g.beginPath();g.ellipse(270,380,170,100,0,0,7);g.fill();g.stroke();
+  g.fillStyle=k[2];g.beginPath();g.ellipse(170,340,82,72,0,0,7);g.fill();g.stroke();
+  g.fillStyle=k[1];for(const e of[-1,1]){g.beginPath();g.moveTo(170+e*58,300);g.lineTo(170+e*34,236);g.lineTo(170+e*6,292);g.closePath();g.fill();g.stroke()}
+  g.lineWidth=5;g.beginPath();g.arc(148,345,11,0,Math.PI);g.stroke();g.beginPath();g.arc(194,345,11,0,Math.PI);g.stroke()}));
+spTex.needsUpdate=true;
 const zzzTex=canvasTex(128,64,(g)=>{g.font='bold 40px serif';g.fillStyle='#fff';g.strokeStyle='rgba(60,40,30,.9)';g.lineWidth=5;g.strokeText('z z Z',10,46);g.fillText('z z Z',10,46)},false);
-const cats=[];
+const cats=[],catArr=[];
 {const usedT=new Set(),pool=allBalconies.slice().sort(()=>rand()-.5);
  for(const b of pool){if(cats.length>=9)break;if(usedT.has(b.T))continue;usedT.add(b.T);
-  const k=CATK[cats.length%CATK.length],c1=C(k[1]),c2=C(k[2]),B=new Buf,x=b.x,y=b.fy+.4,z=b.z;
-  B.at(ico1,x,y+.32,z,.75,.34,.5,c1);B.at(ico1,x+.25,y+.42,z+.12,.3,.22,.3,c2);B.at(ico1,x+.62,y+.34,z+.1,.27,.24,.26,c1);
-  B.box(x+.7,y+.58,z-.03,.1,.14,.08,c1);B.box(x+.7,y+.58,z+.22,.1,.14,.08,c2);B.at(ico1,x-.5,y+.2,z+.35,.4,.1,.12,c2);
-  B.box(x,y+.05,z,1.9,.1,1.3,C('#b5452f'));
-  scene.add(B.mesh(M.flat));
-  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:zzzTex,transparent:true,depthWrite:false}));sp.scale.set(3.2,1.6,1);sp.position.set(x+.8,y+2.2,z);scene.add(sp);
-  cats.push({pos:new V3(x,y+.5,z),T:b.T,name:k[0],sp,found:false});
+  const ki=cats.length%CATK.length,k=CATK[ki];
+  // curled up on a cushion by the railing, where it can be seen from outside
+  XF=b.xf;const [nx,nz]=NRM[b.side],tx=nz,tz=-nx,o=b.dist+b.dep-1.4,lx=b.cx+nx*o+tx*b.s,lz=b.cz+nz*o+tz*b.s,[x,z]=xfP(lx,lz),y=b.fy+.4;
+  const B=new Buf;B.box(lx,y+.07,lz,1.9,.14,1.45,C('#dba08a'));scene.add(B.mesh(M.flat));XF=null;
+  addSprite(catArr,x,y+.12,z,2.4,CAT_CELL[ki],0,rand()<.5?1:-1);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:zzzTex,transparent:true,depthWrite:false}));sp.scale.set(3.4,1.7,1);sp.position.set(x,y+2.4,z);scene.add(sp);
+  cats.push({pos:new V3(x,y+.8,z),T:b.T,name:k[0],sp,sy:y+2.4,found:false,heard:0});
  }}
+const catMesh=spriteMesh(catArr,1400,false,SC.cat);
 
 /* ---------- target marker ---------- */
 const marker=new THREE.Group();
@@ -1428,9 +1595,9 @@ function pluck(f,vol=.12,type='triangle',dur=1.8,when=0){
   o.connect(g);g.connect(master);g.connect(echo);o.start(t);o.stop(t+dur+.05);
 }
 function chime(up){const n=up?[4,5,7]:[2,4,5,7,8];n.forEach((k,i)=>pluck(SCALE[k]*2,.1,'sine',1.4,i*.11))}
-function meow(){if(!AC)return;const o=AC.createOscillator(),g=AC.createGain(),f=AC.createBiquadFilter(),t=AC.currentTime;o.type='sawtooth';f.type='bandpass';f.frequency.value=1400;f.Q.value=2;
+function meow(v=.16){if(!AC)return;const o=AC.createOscillator(),g=AC.createGain(),f=AC.createBiquadFilter(),t=AC.currentTime;o.type='sawtooth';f.type='bandpass';f.frequency.value=1400;f.Q.value=2;
   o.frequency.setValueAtTime(620,t);o.frequency.linearRampToValueAtTime(930,t+.15);o.frequency.linearRampToValueAtTime(560,t+.5);
-  g.gain.setValueAtTime(.0001,t);g.gain.linearRampToValueAtTime(.16,t+.06);g.gain.exponentialRampToValueAtTime(.0001,t+.55);o.connect(f);f.connect(g);g.connect(master);o.start(t);o.stop(t+.6)}
+  g.gain.setValueAtTime(.0001,t);g.gain.linearRampToValueAtTime(v,t+.06);g.gain.exponentialRampToValueAtTime(.0001,t+.55);o.connect(f);f.connect(g);g.connect(master);o.start(t);o.stop(t+.6)}
 let nextPluck=2;
 
 /* ---------- game state ---------- */
@@ -1491,24 +1658,25 @@ const SET=[
  {k:'time',l:'時辰',min:0,max:1,step:.002,fmt:clockStr},
  {k:'timeSpeed',l:'時間流速',min:0,max:10,step:.1,def:1,fmt:v=>v===0?'暫停':v.toFixed(1)+'×'},
  {sec:'大氣　ATMOSPHERE'},
- {k:'clouds',l:'雲量',min:0,max:1,step:.01,def:.7,fmt:pct},
+ {k:'clouds',l:'雲量',min:0,max:2,step:.02,def:1,b:.5,fmt:pct},
  {k:'fog',l:'霧',min:0,max:3,step:.05,def:1,fmt:pct},
- {k:'lanterns',l:'天燈（夜）',min:0,max:1.5,step:.05,def:1,fmt:pct},
- {k:'motes',l:'螢火蟲與浮塵',min:0,max:2,step:.05,def:1,fmt:pct},
+ {k:'lanterns',l:'天燈（夜）',min:0,max:1.6,step:.05,def:1,b:1.5,fmt:pct},
+ {k:'motes',l:'螢火蟲與浮塵',min:0,max:1.5,step:.05,def:1,b:2,fmt:pct},
  {k:'petals',l:'櫻花瓣',min:0,max:1,step:.05,def:1,fmt:pct},
  {sec:'畫面效果　RENDERING'},
  {k:'quality',l:'畫質',min:0,max:2,step:1,def:2,fmt:v=>['低','中','高'][v]},
- {k:'bloom',l:'光暈',min:0,max:2.5,step:.05,def:1,fmt:pct},
- {k:'dream',l:'柔光',min:0,max:2.5,step:.05,def:1,fmt:pct},
+ {k:'bloom',l:'光暈',min:0,max:5,step:.05,def:1,b:.3,fmt:pct},
+ {k:'dream',l:'柔光',min:0,max:1.6,step:.05,def:1,b:1.5,fmt:pct},
  {k:'shafts',l:'光束',min:0,max:2.5,step:.05,def:1,fmt:pct},
- {k:'dof',l:'遠景模糊',min:0,max:2,step:.05,def:1,fmt:pct},
- {k:'contrast',l:'近景對比',min:0,max:2,step:.05,def:1,fmt:pct},
- {k:'ink',l:'墨線',min:0,max:1.5,step:.05,def:1,fmt:pct},
- {k:'sketch',l:'霧中線稿',min:0,max:2,step:.05,def:1,fmt:pct},
- {k:'crease',l:'轉折描線',min:0,max:2,step:.05,def:1,fmt:pct},
- {k:'depth',l:'立面深度',min:0,max:2.5,step:.05,def:1,fmt:pct},
- {k:'grain',l:'紙張質感',min:0,max:2.5,step:.05,def:1,fmt:pct},
- {k:'vignette',l:'暗角',min:0,max:2,step:.05,def:1,fmt:pct},
+ {k:'dof',l:'遠景模糊',min:0,max:6,step:.1,def:1,b:.25,fmt:pct},
+ {k:'contrast',l:'近景對比',min:0,max:6,step:.1,def:1,b:.15,fmt:pct},
+ {k:'ink',l:'墨線',min:0,max:1.5,step:.05,def:1,b:1.5,fmt:pct},
+ {k:'sketch',l:'霧中線稿',min:0,max:1.6,step:.05,def:1,b:1.5,fmt:pct},
+ {k:'crease',l:'轉折描線',min:0,max:1.6,step:.05,def:1,b:1.5,fmt:pct},
+ {k:'depth',l:'立面深度',min:0,max:3.5,step:.05,def:1,b:.65,fmt:pct},
+ {k:'water',l:'水彩感',min:0,max:1.6,step:.05,def:1,fmt:pct},
+ {k:'grain',l:'紙張質感',min:0,max:2.5,step:.05,def:0,fmt:pct},
+ {k:'vignette',l:'暗角',min:0,max:2,step:.05,def:0,fmt:pct},
  {sec:'鏡頭與飛行　CAMERA'},
  {k:'fov',l:'視角',min:40,max:95,step:1,def:62,fmt:v=>v+'°'},
  {k:'camDist',l:'鏡頭距離',min:.5,max:2.5,step:.05,def:1,fmt:v=>v.toFixed(2)+'×'},
@@ -1516,18 +1684,22 @@ const SET=[
  {k:'invertY',l:'滑鼠上下反轉',min:0,max:1,step:1,def:0,fmt:v=>v?'開':'關'},
  {k:'flySpeed',l:'飛行速度',min:.5,max:3,step:.05,def:1,fmt:v=>v.toFixed(2)+'×'},
  {sec:'人物　PEOPLE'},
- {k:'peopleScale',l:'路人大小',min:.6,max:2.6,step:.05,def:1.6,fmt:v=>v.toFixed(2)+'×'},
- {k:'playerScale',l:'主角大小',min:.8,max:2.6,step:.05,def:1.6,fmt:v=>v.toFixed(2)+'×'},
+ {k:'peopleScale',l:'路人大小',min:.6,max:3.2,step:.05,def:2.25,fmt:v=>v.toFixed(2)+'×'},
+ {k:'playerScale',l:'主角大小',min:.8,max:2.6,step:.05,def:1.45,fmt:v=>v.toFixed(2)+'×'},
+ {k:'catScale',l:'貓大小',min:.3,max:2.5,step:.05,def:1,b:.55,fmt:v=>v.toFixed(2)+'×'},
  {sec:'聲音　SOUND'},
  {k:'volume',l:'音量',min:0,max:1,step:.05,def:.7,fmt:pct},
 ];
-const ST={};for(const d of SET)if(d.def!=null)ST[d.k]=d.def;
-try{const o=JSON.parse(localStorage.getItem('tengai-settings'));if(o)for(const k in o)if(k in ST)ST[k]=o[k]}catch(e){}
-const saveS=()=>{try{localStorage.setItem('tengai-settings',JSON.stringify(ST))}catch(e){}};
-function applyS(k){const v=ST[k];switch(k){
+const ST={},BASE={};for(const d of SET){if(d.def!=null)ST[d.k]=d.def;if(d.b)BASE[d.k]=d.b}
+const SV=k=>ST[k]*(BASE[k]||1);   // the actual value a setting stands for (the sliders show it relative to the chosen defaults)
+try{const o=JSON.parse(localStorage.getItem('tengai-settings'));if(o){const old=!o._v;for(const k in o)if(k in ST)ST[k]=old&&BASE[k]?o[k]/BASE[k]:o[k]}}catch(e){}
+const saveS=()=>{try{localStorage.setItem('tengai-settings',JSON.stringify({...ST,_v:2}))}catch(e){}};
+function applyS(k){const v=SV(k);switch(k){
+  case 'catScale':SC.cat.value=v;break;
   case 'quality':quality=v;sun.castShadow=v===2;break;
   case 'bloom':postU.kBloom.value=v;break;case 'dream':postU.kDream.value=v;break;case 'shafts':postU.kShaft.value=v;break;
   case 'dof':postU.kDof.value=v;break;case 'contrast':postU.kNear.value=v;break;case 'ink':postU.kInk.value=v;break;case 'sketch':postU.kSketch.value=v;break;case 'crease':postU.kCrease.value=v;break;case 'depth':facDepthU.value=v;break;
+  case 'water':washU.k.value=Math.min(v,1.2);postU.kWater.value=v;break;
   case 'grain':postU.kGrain.value=v;$('paper').style.opacity=.3*Math.min(v,2);break;
   case 'vignette':$('vig').style.opacity=v;break;
   case 'petals':petals.material.opacity=v;petals.visible=v>0;break;
@@ -1585,9 +1757,10 @@ function applyTime(){
   // the sun by day, the moon by night: sky disc, key light, light shafts and the bright side of the fog all follow it
   skyU.sunDir.value.copy(sdir);skyU.sunCol.value.copy(sun.color);skyU.night.value=night;
   lightDir.copy(sdir).lerp(moonDir,smoothstep01(night)).normalize();sdir.copy(lightDir);
-  postU.uSunDir.value.copy(lightDir);postU.uSunCol.value.copy(sun.color).lerp(C('#c9d0ff'),night);postU.uFogCol.value.copy(skyU.hor.value);
+  postU.uSunDir.value.copy(lightDir);postU.uSunCol.value.copy(sun.color).lerp(C('#c9d0ff'),night);postU.uFogCol.value.copy(skyU.hor.value).lerp(C('#c4d8ec'),.45*(1-night));
   postU.uShaftCol.value.copy(sun.color).lerp(C('#aeb8ff'),night).multiplyScalar(lerp(.55,.4,night));
   postU.uFogA.value=lerp(.0015,.0026,night);
+  washU.ref.value=Math.max(.05,(sun.intensity+hemi.intensity)/Math.PI*.85);   // the light level a fully lit surface gets right now
   moteU.uNight.value=lanternU.uNight.value=night;
   sun.target.position.set(Math.round(P.pos.x/8)*8,Math.round(P.pos.y/8)*8,Math.round(P.pos.z/8)*8);sun.position.copy(sun.target.position).addScaledVector(sdir,750);
   M.fac.emissiveIntensity=night*1.5;postU.night.value=night;
@@ -1597,8 +1770,8 @@ function applyTime(){
   // clouds: sunlit tops, sky-tinted undersides; at night dim blue tops and a warm glow from the lanterns below
   cloudU.uTint.value.copy(sun.color).lerp(WHITE,.35).lerp(C('#4a5288'),night*.8);
   cloudU.uShade.value.copy(skyU.hor.value).lerp(WHITE,.45*(1-night)).lerp(C('#a86a58'),night*.55);
-  cloudU.uAmt.value=ST.clouds;
-  postU.uFogA.value*=ST.fog;lanternU.uNight.value=night*ST.lanterns;moteU.uAmt.value=ST.motes;
+  cloudU.uAmt.value=SV('clouds');
+  postU.uFogA.value*=SV('fog');lanternU.uNight.value=night*SV('lanterns');moteU.uAmt.value=SV('motes');
 }
 
 /* ---------- main loop ---------- */
@@ -1626,7 +1799,7 @@ function frame(now){
     if(P.pos.y>1500)P.pos.y=1500;
     const hr=Math.hypot(P.pos.x,P.pos.z);if(hr>4300){P.pos.x*=4300/hr;P.pos.z*=4300/hr}
     bumpCd-=dt;
-    if(collide(P.pos,1.7)){P.speed*=Math.pow(.02,dt);if(bumpCd<=0&&P.speed>25){bumpCd=.6;pluck(110,.12,'sine',.25)}}
+    if(collide(P.pos,photo?2.6:1.7)){P.speed*=Math.pow(.02,dt);if(bumpCd<=0&&P.speed>25){bumpCd=.6;pluck(110,.12,'sine',.25)}}
     // job logic
     if(job){
       const tp=job.stage===0?job.from.pos:job.to.pos;
@@ -1637,7 +1810,10 @@ function frame(now){
           toast(`〈${job.to.T.name}〉的客人收下了『${job.item}』\n酬勞 ${base} 文${tip?`　＋小費 ${tip} 文`:''}`,4);newJob()}
       }else if(job.stage===1){const left=job.par-(clock-job.t0),e=$('tip');if(e)e.textContent=left>0?`準時小費還剩 ${Math.ceil(left)} 秒`:'慢慢飛也沒關係'}
     }
-    for(let i=0;i<cats.length;i++){const c=cats[i];if(!c.found&&c.pos.distanceToSquared(P.pos)<36){c.found=true;c.sp.visible=false;save.cats.push(i);save.coins+=30;persist();showStats();meow();
+    for(let i=0;i<cats.length;i++){const c=cats[i];if(c.found)continue;const d2=c.pos.distanceToSquared(P.pos);
+      c.sp.position.y=c.sy+Math.sin(clock*1.6+i)*.25;
+      if(d2<900&&clock>c.heard){c.heard=clock+7+Math.random()*4;meow(.05+.06*(1-Math.sqrt(d2)/30))}   // a sleepy meow when you are close
+      if(d2<64){c.found=true;c.sp.visible=false;save.cats.push(i);save.coins+=30;persist();showStats();meow();
       toast(`摸到了睡在〈${c.T.name}〉陽台上的${c.name}\n（${save.cats.length}/${cats.length}）${save.cats.length===cats.length?'\n全城的貓都認識你了！':''}`,4)}}
     toriiCd-=dt;
     if(toriiCd<=0&&P.pos.distanceToSquared(toriiPos)<900){toriiCd=60;if(!save.torii){save.torii=true;save.coins+=300;persist();showStats()}
