@@ -265,6 +265,20 @@ const atlasTex=canvasTex(2048,4096,(g)=>{
   });
 },false);
 const cellUV=i=>{const c=i%ACOLS,r=Math.floor(i/ACOLS);return[c/ACOLS+.002,1-(r+1)/AROWS,(c+1)/ACOLS-.002,1-r/AROWS]};
+// landmark signs: each tall tower's name, large, on a broad cloth (cells 3:4)
+// each sheet is cut to its own name: one column (two for four characters), with the same margin all round
+const SG_C=8,SG_R=6,SG_W=2048,SG_H=4096,SGR=[];
+const signTex=canvasTex(SG_W,SG_H,(g)=>{const cw=SG_W/SG_C,ch=SG_H/SG_R;g.textAlign='center';g.textBaseline='middle';
+  const sty=[['#f6f0e2','#2e2a2a','#b8433a'],['#4f6288','#f6efe0','#e9dcc0'],['#c9604a','#fbf1dc','#fbf1dc'],['#efe3c6','#3a2a22','#5a6f9a'],['#f4ece0','#7a2f28','#7a2f28']];
+  towerNames.slice(0,NTOWER).forEach((txt,i)=>{const n=txt.length,cols=n>=4?2:1,per=Math.ceil(n/cols),gap=.12;
+    const fs=Math.min((cw-8)/(cols+gap*(cols-1)+.64),(ch-8)/(per*1.04+.64)),pd=fs*.32,rw=fs*(cols+gap*(cols-1))+2*pd,rh=fs*per*1.04+2*pd;
+    const x=(i%SG_C)*cw+(cw-rw)/2,y=Math.floor(i/SG_C)*ch+4,[bg,fg,ac]=sty[i%sty.length];SGR[i]=[x,y,rw,rh];
+    g.fillStyle=bg;g.fillRect(x,y,rw,rh);g.fillStyle='rgba(90,60,30,.09)';for(let k=0;k<10;k++)g.fillRect(x,y+trand()*rh,rw,3+trand()*8);
+    g.strokeStyle=ac;g.lineWidth=fs*.07;g.strokeRect(x+pd*.28,y+pd*.28,rw-pd*.56,rh-pd*.56);g.lineWidth=fs*.02;g.strokeRect(x+pd*.55,y+pd*.55,rw-pd*1.1,rh-pd*1.1);
+    g.fillStyle=fg;g.font=`bold ${fs*.94}px "Yu Mincho","Noto Serif TC","Noto Serif CJK TC","Songti TC","PMingLiU",serif`;
+    for(let c=0;c<cols;c++)for(let k=0;k<per;k++){const idx=c*per+k;if(idx>=n)break;const cx=x+rw-pd-fs/2-c*fs*(1+gap);   // read top to bottom, right column first
+      g.fillText(txt[idx],cx,y+pd+fs*1.04*(k+.5))}})},false);
+const signUV=i=>{const [x,y,w,h]=SGR[i];return[(x+1)/SG_W,1-(y+h-1)/SG_H,(x+w-1)/SG_W,1-(y+1)/SG_H]},signAsp=i=>SGR[i][3]/SGR[i][2];
 const glowTex=canvasTex(64,64,(g)=>{const gr=g.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,'rgba(255,255,255,1)');gr.addColorStop(.3,'rgba(255,255,255,.45)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(0,0,64,64)},false);
 const petalTex=canvasTex(32,32,(g)=>{g.fillStyle='#fff';g.beginPath();g.ellipse(16,16,13,7,.6,0,7);g.fill()},false);
 const groundTex=canvasTex(1024,1024,(g,w,h)=>{
@@ -386,7 +400,7 @@ function loadAssets(){
 
 /* ---------- renderer / scene ---------- */
 const renderer=new THREE.WebGLRenderer({canvas:$('c'),antialias:true,powerPreference:'high-performance'});
-const PR=Math.min(devicePixelRatio,2);
+let PR=Math.min(devicePixelRatio,2);
 renderer.setPixelRatio(PR);
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 const scene=new THREE.Scene();scene.fog=new THREE.Fog(0xe6f0f7,600,7000);
@@ -491,6 +505,7 @@ const postMat=fsMat(postU,`uniform sampler2D tC,tD,tBlur,tBloomS,tBloomW,tShaft;
   }`);
 let rt=null,rtQ1,rtQ2,rtB1,rtB2,rtE1,rtE2;const QS=new URLSearchParams(location.search);
 function resize(){
+  PR=Math.min(devicePixelRatio,2);renderer.setPixelRatio(PR);   // the window may have moved to a screen with another pixel ratio
   renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
   const w=Math.max(2,Math.floor(innerWidth*PR)),h=Math.max(2,Math.floor(innerHeight*PR));
   for(const t of[rt,rtQ1,rtQ2,rtB1,rtB2,rtE1,rtE2])if(t)t.dispose();
@@ -578,17 +593,18 @@ void main() {`)
 const facDepthU={value:1};
 const SWAY='sin(uTime*1.8+position.x*.3+position.z*.3+position.y*.25)*.42+sin(uTime*3.1+position.x*.7-position.z*.5)*.12';
 M.ban.onBeforeCompile=sh=>{sh.uniforms.uTime=windU;sh.vertexShader='uniform float uTime;\n'+sh.vertexShader.replace('#include <color_vertex>','vColor=vec3(1.);').replace('#include <begin_vertex>','#include <begin_vertex>\n transformed+=normal*('+SWAY+')*color.r;')};
+M.sign=new THREE.MeshLambertMaterial({map:signTex,vertexColors:true,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3});M.sign.onBeforeCompile=M.ban.onBeforeCompile;
 M.cloth.onBeforeCompile=sh=>{sh.uniforms.uTime=windU;sh.vertexShader='uniform float uTime;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n transformed+=normal*('+SWAY+')*uv.y;')};
 M.rock.onBeforeCompile=sh=>{sh.uniforms.tMoss={value:mossTex};
   sh.vertexShader='varying vec3 vRw;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n vRw=(modelMatrix*vec4(transformed,1.)).xyz;');
   sh.fragmentShader='varying vec3 vRw;uniform sampler2D tMoss;\n'+sh.fragmentShader.replace('#include <map_fragment>',`
-    vec3 rN=normalize(cross(dFdx(vRw),dFdy(vRw))),rA=pow(abs(rN),vec3(3.));
+    vec3 rN=normalize(cross(dFdx(vRw),dFdy(vRw))),rA=pow(abs(rN),vec3(10.));
     vec4 rS=(texture2D(map,vRw.zy*vec2(.04,.028))*rA.x+texture2D(map,vRw.xy*vec2(.04,.028))*rA.z)/max(rA.x+rA.z,1e-4);
     diffuseColor*=mix(rS,texture2D(tMoss,vRw.xz*.05),smoothstep(.55,.8,rN.y));`)};
 // water carries its fade in the vertex colour (1 = full, 0 = gone), not a tint
 M.falls.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <color_fragment>','diffuseColor.a*=vColor.r;')};
 washify(M.roof,.45);
-for(const k of['wood','win','wind','ban','flat','fac','card','cloth','beam','plank','plas','rock'])if(M[k].isMeshLambertMaterial)washify(M[k]);
+for(const k of['wood','win','wind','ban','sign','flat','fac','card','cloth','beam','plank','plas','rock'])if(M[k].isMeshLambertMaterial)washify(M[k]);
 const washU={k:{value:1},ref:{value:1},cool:{value:new THREE.Color(.95,.91,.9)}};   // shadow wash: warm and slightly muted, so timber in shade stays tan, not grey
 function washify(m,st=1){const prev=m.onBeforeCompile;
   m.onBeforeCompile=(sh,r)=>{if(prev)prev(sh,r);sh.uniforms.kWash=washU.k;sh.uniforms.uRef=washU.ref;sh.uniforms.uCool=washU.cool;
@@ -598,7 +614,7 @@ function washify(m,st=1){const prev=m.onBeforeCompile;
     vec3 Lw=Lc/max(wl,1e-4)*wr2*uRef*mix(vec3(1.),mix(uCool,vec3(1.),smoothstep(.3,.95,wr)),kW);
     vec3 outgoingLight=diffuseColor.rgb*Lw+totalEmissiveRadiance;`)};
   m.customProgramCacheKey=()=>'wash'+st+'|'+(prev?prev.toString():'')}
-const newBufs=()=>{const B={wood:new Buf,roof:new Buf,win:new Buf,wind:new Buf,glow:new Buf,ban:new Buf,flat:new Buf,fac:new Buf,card:new Buf,cloth:new Buf,beam:new Buf,plank:new Buf,plas:new Buf,rock:new Buf,falls:new Buf};B.wood.route={beam:B.beam,plank:B.plank};return B};
+const newBufs=()=>{const B={wood:new Buf,roof:new Buf,win:new Buf,wind:new Buf,glow:new Buf,ban:new Buf,sign:new Buf,flat:new Buf,fac:new Buf,card:new Buf,cloth:new Buf,beam:new Buf,plank:new Buf,plas:new Buf,rock:new Buf,falls:new Buf};B.wood.route={beam:B.beam,plank:B.plank};return B};
 const addBufs=B=>{for(const k in B){if(!(B[k] instanceof Buf))continue;const m=B[k].mesh(M[k]);if(m){m.matrixAutoUpdate=false;m.castShadow=k==='wood'||k==='roof'||k==='flat'||k==='beam'||k==='plank'||k==='plas'||k==='rock';m.receiveShadow=k!=='glow'&&k!=='win'&&k!=='falls';scene.add(m)}}};
 
 /* ---------- palette & shared geometry ---------- */
@@ -687,10 +703,10 @@ function banner(B,cx,cz,side,dist,s,wd,y0,h,cell,sway=1){
 }
 // giant nobori, three or four storeys tall, hanging from a pole that juts out past the balconies
 function bigFlag(B,cx,cz,side,dist,s,ytop,h,cell){
-  const [nx,nz]=NRM[side],tx=nz,tz=-nx,wd=h/4,o0=dist+5,o1=o0+wd,X=side<2,P=o=>[cx+nx*o+tx*s,cz+nz*o+tz*s];
+  const [nx,nz]=NRM[side],tx=nz,tz=-nx,wd=h/4,o0=dist+7.5,o1=o0+wd,X=side<2,P=o=>[cx+nx*o+tx*s,cz+nz*o+tz*s];
   const pl=o1+.8-dist,pc=P(dist+pl/2);B.wood.box(pc[0],ytop+.25,pc[1],X?pl:.4,.4,X?.4:pl,DARK);
-  const sv=new V3(nx*4,4.5,nz*4),sc=P(dist+2);B.wood.box(sc[0],ytop-2.1,sc[1],.32,sv.length(),.32,DARK,new THREE.Quaternion().setFromUnitVectors(UP,sv.normalize()));
-  const a=P(o0),b=P(o1);flagQuad(B,a[0],a[1],b[0],b[1],ytop-h,ytop,cell,h/7);
+  const sv=new V3(nx*6.4,5.5,nz*6.4),sc=P(dist+3.2);B.wood.box(sc[0],ytop-2.3,sc[1],.32,sv.length(),.32,DARK,new THREE.Quaternion().setFromUnitVectors(UP,sv.normalize()));
+  const a=P(o0),b=P(o1);flagQuad(B,a[0],a[1],b[0],b[1],ytop-h,ytop,cell,h/9);
   lantern(B,b[0],ytop-.9,b[1],1,LCOL(),0);
 }
 
@@ -778,11 +794,11 @@ function blobTree(B,x,y,z,s,cols){addSprite(SPRS.trees,x,y,z,s*2.8,treeCell(cols
 const umbG=new THREE.ConeGeometry(1.5,.55,12,1,true);
 function umbrella(B,x,y,z){B.wood.box(x,y+1.3,z,.08,2.6,.08,STICK);B.flat.at(umbG,x,y+2.75,z,1,1,1,pick([RED,RED,INDIGO,PLASTER,LORANGE]))}
 function stall(B,x,y,z){
-  const c=pick(AWN);for(const a of[-1.6,1.6])for(const b of[-1,1])B.wood.box(x+a,y+1.4,z+b,.16,2.8,.16,DARK);
-  B.cloth.quad([x-2,y+2.6,z+1.5],[x+2,y+2.6,z+1.5],[x+2,y+3.2,z-1.3],[x-2,y+3.2,z-1.3],c,0,.3,1,0);
+  const c=pick(AWN);for(const a of[-1.6,1.6])for(const b of[-1,1])B.wood.box(x+a,y+1.65+(b<0?.3:0),z+b,.16,3.3+(b<0?.6:0),.16,DARK);
+  B.cloth.quad([x-2,y+3.2,z+1.5],[x+2,y+3.2,z+1.5],[x+2,y+3.9,z-1.3],[x-2,y+3.9,z-1.3],c,0,.3,1,0);
   B.wood.box(x,y+.9,z,3,.2,1.4,PLANK);
   for(let i=0;i<5;i++)B.flat.at(ico0,x-1.2+i*.6,y+1.2,z+R(-.3,.3),.25,.22,.25,pick([LRED,LORANGE,GREENS[0],LCREAM]));
-  if(chance(.6))lantern(B,x+1.7,y+2.3,z+1.4,.6,LCOL(),0);
+  if(chance(.6))lantern(B,x+1.7,y+2.6,z+1.4,.6,LCOL(),0);
   person(B,x+R(-1,1),y,z-1.9);
 }
 // scatter the stuff of daily life over a rectangle of floor
@@ -854,10 +870,13 @@ function balconyProps(B,T,cx,cz,side,dist,fy,dep,bw,s,quiet){
     B.cloth.quad([a[0],fy+4,a[1]],[b[0],fy+4,b[1]],[b[0],fy+4.6,b[1]],[a[0],fy+4.6,a[1]],c,0,1,1,.35);
     if(chance(.6)){lanternRow(B,a[0],fy+4,a[1],b[0],fy+4,b[1],2.6,.25,RI(0,1))}}
   if(chance(.35)){const [qx,qz]=pt(dist+dep-.3,ra());B.glow.at(ico0,qx,fy+4.3,qz,.2,.24,.2,C('#bfe6f0'));B.cloth.quad([qx-tx*.11,fy+3.45,qz-tz*.11],[qx+tx*.11,fy+3.45,qz+tz*.11],[qx+tx*.11,fy+4.05,qz+tz*.11],[qx-tx*.11,fy+4.05,qz-tz*.11],WHITE,0,1,1,0);B.wood.box(qx,fy+5.6,qz,.04,2.4,.04,DARK)}
-  if(chance(.14)){ // ladder to the floor above
-    const a=s+(chance(.5)?1:-1)*bw*.3;for(const e of[-.4,.4]){const [qx,qz]=pt(dist+.55,a+e);B.wood.box(qx,fy+3.9,qz,.13,7,.13,DARK)}
-    for(let r=0;r<9;r++){const [qx,qz]=pt(dist+.55,a);B.wood.box(qx,fy+.9+r*.75,qz,X?.1:.8,.1,X?.8:.1,DARK)}}
   if(chance(.08)){const [qx,qz]=pt(dist+dep*.5,ra());umbrella(B,qx,fy+.4,qz)}
+  if(!quiet&&TWC&&fy-TWC.y0>1&&chance(.035)){   // a giant broom slung out over the rail: the sign of a broom-maker, as in the paintings (not over the eaves of the block below)
+    const a=ra(),p0=pt(dist+dep-.15,a),p1=pt(dist+dep+1.3,a),top=new V3(p0[0],fy+1.5,p0[1]),bot=new V3(p1[0],fy-1.6,p1[1]),du=top.clone().sub(bot),L=du.length();du.normalize();
+    const qh=new THREE.Quaternion().setFromUnitVectors(UP,du),m=top.clone().add(bot).multiplyScalar(.5);B.wood.box(m.x,m.y,m.z,.17,L+.6,.17,STICK,qh);
+    const hc=bot.clone().addScaledVector(du,-1);B.flat.geom(new THREE.CylinderGeometry(.22,.9,2.1,10,1),new THREE.Matrix4().compose(hc,qh,new V3(1,1,1)),STRAW);
+    const bc=bot.clone().addScaledVector(du,.05);B.flat.geom(new THREE.CylinderGeometry(.3,.3,.35,10,1),new THREE.Matrix4().compose(bc,qh,new V3(1,1,1)),INDIGO);
+    const [rx,rz]=pt(dist+dep-.1,a);B.wood.box(rx,fy+1.5,rz,.3,.3,.3,DARK)}
   if(!quiet&&chance(.25))for(let k=RI(2,6);k>0;k--){const L=R(1,4.5);panel(B.cloth,cx,cz,side,dist+dep+.14,ra(),R(.6,1.4),fy+.15-L,L,pick(GREENS),0,1,1,0)}   // ivy spilling over the edge
   const np=chance(com?.6:.4)?RI(1,com?4:2):0;for(let i=0;i<np;i++){const [qx,qz]=pt(dist+R(1.2,dep-.8),ra());person(B,qx,fy+.4,qz)}
   for(let k=chance(.65)?RI(1,2):0;k>0;k--){const [qx,qz]=pt(dist+R(1.3,dep-1.3),ra());card(qx,fy+.4,qz)}
@@ -909,11 +928,11 @@ function balcony(B,T,cx,cz,side,len,dist,fy,opt={}){
   const [fx,fz]=pt(dist+dep,s);
   // the outer rail, broken where an outside stair leaves or arrives (opt.gaps, ranges along the wall)
   let segsR=[[L0,L1]];for(const [g0,g1] of opt.gaps||[]){const nx2=[];for(const [u0,u1] of segsR){if(g1<=u0||g0>=u1){nx2.push([u0,u1]);continue}if(g0>u0)nx2.push([u0,g0]);if(g1<u1)nx2.push([g1,u1])}segsR=nx2}
-  for(const [u0,u1] of segsR){const ln=u1-u0;if(ln<.3)continue;const [rx,rz]=pt(dist+dep,(u0+u1)/2);
+  if(!opt.noOuter)for(const [u0,u1] of segsR){const ln=u1-u0;if(ln<.3)continue;const [rx,rz]=pt(dist+dep,(u0+u1)/2);
     B.wood.box(rx,fy+1.5,rz,X?.22:ln,.22,X?ln:.22,DARK);B.wood.box(rx,fy+.85,rz,X?.14:ln,.14,X?ln:.14,DARK);
     const np=Math.max(2,Math.round(ln/3.5)+1);for(let i=0;i<np;i++){const [qx,qz]=pt(dist+dep,u0+ln*i/(np-1));B.wood.box(qx,fy+.95,qz,.3,1.5,.3,DARK)}}
   for(const e of[-1,1]){const [ex,ez]=pt(dist+dep/2,s+e*bw/2);B.wood.box(ex,fy+1.5,ez,X?dep:.22,.22,X?.22:dep,DARK)}
-  for(const e of[-1,1]){const [qx,qz]=pt(dist+dep*.45,s+e*bw*.4);B.wood.box(qx,fy-dep*.45,qz,.35,dep*1.25,.35,DARK,new THREE.Quaternion().setFromUnitVectors(UP,new V3(nx,1,nz).normalize()))}
+  for(const e of[-1,1]){const [bx,bz]=pt(dist+.05,s+e*bw*.4),[ux,uz]=pt(dist+dep*.88,s+e*bw*.4);brace(B,bx,bz,fy-dep*.88,ux,fy,uz,.35)}
   let ps=s,pb=bw;const ex=opt.clear||opt.hole;
   if(ex){const l=ex[0]-L0,r=L1-ex[1];if(l>=r){pb=l;ps=L0+l/2}else{pb=r;ps=ex[1]+r/2}}
   for(let i=pb>2?RI(0,T.type==='res'?4:2):0;i>0;i--){const [qx,qz]=pt(dist+R(1,3.8),ps+R(-.42,.42)*pb);potPlant(qx,fy+.4,qz,R(.9,1.3))}
@@ -925,7 +944,8 @@ function balcony(B,T,cx,cz,side,len,dist,fy,opt={}){
     for(const e of[-1,1]){const [qx,qz]=pt(dist+dep,s+e*bw/2);D.wood.box(qx,fy+2.5,qz,.16,1.8,.16,DARK)}
     for(let a=-bw/2+1;a<bw/2-1;a+=R(1.3,2))panel(D.cloth,cx,cz,side,dist+dep,s+a,R(.8,1.2),fy+1.8,1.5,pick([WHITE,WHITE,INDIGO,C('#c9d6e6'),C('#d99a8a')]),0,1,1,0);
   }
-  if(!quiet&&chance(.22))banner(D,cx,cz,side,dist+dep+.15,s+R(-.3,.3)*bw,2.1,fy-8.3,8,RI(0,GENERAL.length-1));
+  if(!quiet&&chance(.22)){const sa=s+R(-.3,.3)*bw,[ax,az]=pt(dist+dep+.55,sa),[bx,bz]=pt(dist+dep+1.05,sa);   // on an arm, a metre clear of the rail below
+    D.wood.box(ax,fy+.05,az,X?1.1:.15,.15,X?.15:1.1,DARK);D.wood.box(bx,fy-.05,bz,X?.14:2.4,.14,X?2.4:.14,DARK);banner(D,cx,cz,side,dist+dep+1.05,sa,2.1,fy-8.3,8.2,RI(0,GENERAL.length-1))}
   if(!quiet&&chance(.3))vine(D,cx,cz,side,dist+dep+.17,s+R(-.35,.35)*bw,fy+.35,R(3,4.6),true);   // greenery spilling over the rail
   if(chance(.2)){const a=s+R(-.4,.4)*bw,[qx,qz]=pt(dist+dep-.4,a),w=xfP(qx,qz);ropeP.push(w[0],fy,w[1],w[0],fy-1.3,w[1]);   // a pot hung under the deck
     potPlant(qx,fy-1.9,qz,.8);
@@ -979,6 +999,19 @@ function veranda(B,T,cx,cz,w,d,fy,fh){
     balconyProps(D,T,cx,cz,side,dist,fy,dep,len*.92,0);
     rec(T,{lx:cx+nx*(dist+dep/2),lz:cz+nz*(dist+dep/2),fy,side,s:0,dist,dep,bw:len,cx,cz})}
 }
+// a timber strut between two points (frame-local)
+function strut(B,x0,y0,z0,x1,y1,z1,th){const dv=new V3(x1-x0,y1-y0,z1-z0),L=dv.length();B.wood.box((x0+x1)/2,(y0+y1)/2,(z0+z1)/2,th,L,th,DARK,new THREE.Quaternion().setFromUnitVectors(UP,dv.normalize()))}
+// a brace whose foot must land on a wall: this block's own, or a block below that really reaches out that far.
+// Where the block below is set back, the foot follows it in: it slides back toward the tower (and a little lower) until it meets that wall
+let TWC=null;
+function onBlock(px,pz,yy){const [wx,wz]=xfP(px,pz);
+  for(const g of TWC.segs){if(yy<g.y-.5||yy>g.y+g.h)continue;const X=g.xf,dx=wx-X.x,dz=wz-X.z,qx=X.c*dx+X.s*dz,qz=-X.s*dx+X.c*dz;if(Math.abs(qx-g.cx)<g.w/2+.7&&Math.abs(qz-g.cz)<g.d/2+.7)return true}
+  return false}
+function brace(B,bx,bz,by,tx,ty,tz,th){
+  if(!TWC||by>=TWC.y0-.2||onBlock(bx,bz,by)){strut(B,bx,by,bz,tx,ty,tz,th);return true}
+  const hx=bx-tx,hz=bz-tz,hl=Math.hypot(hx,hz)||1,ux=hx/hl,uz=hz/hl;
+  for(let d=.5;d<16;d+=.5)for(const dy of[0,-2,-4]){const px=bx+ux*d,pz=bz+uz*d,yy=by+dy;if(onBlock(px,pz,yy)){strut(B,px,yy,pz,tx,ty,tz,th);return true}}
+  return false}
 // a big deck cantilevered out on raking struts: garden, market or a little house standing on it
 function terrace(B,T,cx,cz,side,len,dist,fy,allowHouse,link){
   const D=B.D,[nx,nz]=NRM[side],tx=nz,tz=-nx,X=side<2,dep=link?R(9,13):T.mid?R(8,13):R(11,20),bw=R(14,Math.max(16,len+10)),s=link?0:R(-.2,.2)*len;
@@ -987,9 +1020,9 @@ function terrace(B,T,cx,cz,side,len,dist,fy,allowHouse,link){
   const ns=Math.max(2,Math.round(bw/7)),L=Math.hypot(dep*.8,dep*.75),q=new THREE.Quaternion().setFromUnitVectors(UP,new V3(nx*dep*.8,dep*.75,nz*dep*.8).normalize());
   for(let i=0;i<ns;i++){const a=s-bw/2+bw*(i+.5)/ns;
     B.wood.box(cx+nx*(dist+dep*.5)+tx*a,fy-.3,cz+nz*(dist+dep*.5)+tz*a,X?dep:.6,.6,X?.6:dep,DARK);
-    B.wood.box(cx+nx*(dist+dep*.4)+tx*a,fy-.5-dep*.375,cz+nz*(dist+dep*.4)+tz*a,.7,L,.7,DARK,q)}
+    brace(B,cx+nx*dist+tx*a,cz+nz*dist+tz*a,fy-.5-dep*.75,cx+nx*(dist+dep*.8)+tx*a,fy-.5,cz+nz*(dist+dep*.8)+tz*a,.7)}
   const x0=px-sx/2+1.5,x1=px+sx/2-1.5,z0=pz-sz/2+1.5,z1=pz+sz/2-1.5,k=rand();
-  if(allowHouse&&dep>=16&&k<.4){const e=chance(.5)?1:-1;
+  if(allowHouse&&dep>=16&&bw>=26&&k<.4){const e=chance(.5)?1:-1;   // only where it leaves the middle of the edge clear for a footbridge to land
     house(B,cx+nx*(dist+dep-5.6)+tx*(s+e*(bw/2-5.6)),fy+.4,cz+nz*(dist+dep-5.6)+tz*(s+e*(bw/2-5.6)),9.6,9.6,1,T.rc,T.type==='com',true);
     furnish(D,x0,z0,x1,z1,fy+.4,RI(4,8),false)}
   else if(k<.7){blobTree(D,px+R(-2,2),fy+.4,pz+R(-2,2),R(1.6,2.2),pick([PINKS,PINKS,GREENS,AUTUMN]));furnish(D,x0,z0,x1,z1,fy+.4,RI(7,13),true)}
@@ -1006,6 +1039,74 @@ function terrace(B,T,cx,cz,side,len,dist,fy,allowHouse,link){
   if(link)link.ends.push(terraces[terraces.length-1]);
   rec(T,{lx:px,lz:pz,fy,side,s,dist,dep,bw,cx,cz});
 }
+// a great deck thrown far out from the wall: a grand gate standing on its outer edge, or the tower's name on a huge cloth
+// hung from that edge, far enough out that it can billow without touching the floors below
+function landmarkDeck(B,T,cx,cz,side,len,dist,fy,kind){
+  const D=B.D,[nx,nz]=NRM[side],tx=nz,tz=-nx,X=side<2,gate=kind==='gate',dep=gate?R(22,27):R(13,16),bw=gate?len+8:len+3;
+  const P=(o,a)=>[cx+nx*o+tx*a,cz+nz*o+tz*a],pc=P(dist+dep/2,0),sx=X?dep:bw,sz=X?bw:dep,y=fy+.4;
+  B.wood.box(pc[0],fy+.15,pc[1],sx,.5,sz,PLANK);addCol(pc[0],fy+.15,pc[1],sx,.5,sz);
+  {const q=P(dist+dep+.1,0);B.wood.box(q[0],fy-.25,q[1],X?.8:bw+.4,.9,X?bw+.4:.8,DARK)}   // the fascia beam along the front
+  for(let a=-bw/2+1;a<=bw/2-1+.01;a+=(bw-2)/Math.max(1,Math.round((bw-2)/4))){const q=P(dist+dep/2,a);B.wood.box(q[0],fy-.45,q[1],X?dep:.5,.5,X?.5:dep,DARK)}   // joists
+  for(let a=-len/2+2;a<=len/2-2+.01;a+=(len-4)/Math.max(1,Math.round((len-4)/6))){const b0=P(dist+.05,a),t0=P(dist+dep*.82,a);brace(B,b0[0],b0[1],fy-.6-dep*.75,t0[0],fy-.5,t0[1],.6)}
+  vRail(B,P(dist,-bw/2),P(dist+dep,-bw/2),y,[]);vRail(B,P(dist,bw/2),P(dist+dep,bw/2),y,[]);
+  vRail(B,P(dist+dep,-bw/2),P(dist+dep,bw/2),y,gate?[[bw/2,7.6*2.3+1]]:[]);
+  if(gate){const K=2.3,o=dist+dep-1.4*K,gw=7.6*K,gh=9.5*K,G=(a,yy,sxx,syy,szz,col)=>{const q=P(o,a);B.wood.box(q[0],yy,q[1],X?szz:sxx,syy,X?sxx:szz,col)};   // a great gate: it is the front door of the tower
+    for(const e of[-1,1]){G(e*gw/2,y+gh/2,K,gh,K,RED);G(e*gw/2,y+.5*K,1.7*K,K,1.7*K,STONE);G(e*(gw/2+1.2*K),y+gh*.33,.5*K,gh*.66,.5*K,RED);G(e*(gw/2+.6*K),y+gh*.62,1.2*K,.35*K,.35*K,RED);
+      const q=P(o,e*gw/2);addCol(q[0],y+gh/2,q[1],K*1.2,gh,K*1.2)}   // posts, footings, back posts
+    G(0,y+gh*.7,gw+2.2*K,.6*K,.6*K,RED);G(0,y+gh+.05*K,gw+3*K,.5*K,K,RED);G(0,y+gh+.6*K,gw+5.2*K,.7*K,1.4*K,DARK);   // nuki, shimaki, kasagi
+    for(const e of[-1,1])G(e*(gw/2+2.4*K),y+gh+.95*K,1.2*K,.5*K,1.5*K,DARK);   // the turned-up ends
+    const rq=P(o,0);roof(B.roof,rq[0],y+gh+K,rq[1],X?.4:gw+2.6*K,X?gw+2.6*K:.4,X?3.6*K:gw+7*K,X?gw+7*K:3.6*K,2*K,T.rc,.6*K,2);
+    const u=cellUV(T.cell);panel(B.ban,cx,cz,side,o+.45*K,0,1.3*K,y+gh-4.5*K,4.3*K,WHITE,u[0],u[1],u[2],u[3]);
+    {const q=P(o,0);lantern(D,q[0],y+gh*.7-2.3*K,q[1],2.2*K,LRED,0)}
+    for(const e of[-1,1])for(const f of[0,1]){const q=P(o-4*K-f*7,e*(gw/2+2.5*K));B.wood.box(q[0],y+.8,q[1],2,1.6,2,STONE);B.wood.box(q[0],y+2.4,q[1],.9,1.8,.9,STONE);lantern(D,q[0],y+3.8,q[1],1.3,LCREAM,2);B.wood.box(q[0],y+5,q[1],2.4,.5,2.4,STONE)}   // stone lanterns lining the approach
+    furnish(D,...(()=>{const a=P(dist+2,-bw/2+2),b=P(o-4*K,bw/2-2);return[Math.min(a[0],b[0]),Math.min(a[1],b[1]),Math.max(a[0],b[0]),Math.max(a[1],b[1])]})(),y,RI(8,14),true);
+    for(let i=RI(8,16);i>0;i--){const q=P(dist+R(2,dep-3),R(-.42,.42)*bw);person(D,q[0],y,q[1])}
+    for(const e of[-1,1]){const a=P(dist+.6,e*(bw/2-.6)),b=P(dist+dep-.6,e*(bw/2-.6));lanternRow(D,a[0],y+5.2,a[1],b[0],y+5.2,b[1],2.6,.6,RI(0,1))}}
+  else{const si=T.cell-GENERAL.length,asp=signAsp(si);let Wd=Math.min(len-1.5,72/asp),H=Math.min(Wd*asp,fy-14);const o=dist+dep+.55,u=signUV(si);   // as wide as the building, as long as its name needs
+    // the cloth must hang clear of anything below that reaches out this far (terraces, decks on the floors underneath)
+    for(const a of[-Wd/2,0,Wd/2])for(const oo of[o-.8,o+.8]){const q=xfP(...P(oo,a));for(let dd=1.5;dd<H+4;dd+=.8)if(hitTest(q[0],fy-dd,q[1],.35)){H=Math.min(H,dd-4);break}}   // stop well above the heads of anyone standing there
+    Wd=Math.min(Wd,H/asp);H=Wd*asp;
+    if(H>8){const q=P(o,0);B.wood.box(q[0],fy-.85,q[1],X?.45:Wd+1.4,.45,X?Wd+1.4:.45,DARK);   // the rod it hangs from
+      panel(B.sign,cx,cz,side,o,0,Wd,fy-.8-H,H,WHITE,u[0],u[1],u[2],u[3]);{const q=P(o,0);addCol(q[0],fy-.8-H/2,q[1],X?1.2:Wd,H,X?Wd:1.2)}const c=B.sign.c,n=c.length;for(let i=n-12;i<n;i++)c[i]=i<n-6?1.3:0;
+      for(const e of[-1,1]){const a=P(o,e*(Wd/2+.2)),w0=xfP(a[0],a[1]);ropeP.push(w0[0],fy-.8,w0[1],w0[0],fy-.8-H*.5,w0[1]);const l=P(o+.3,e*(Wd/2+.75));lantern(D,l[0],fy-2.1,l[1],1.4,LRED,0)}}
+    for(const e of[-1,0,1]){const q=P(dist+dep-.4,e*(bw/2-1.5));B.wood.box(q[0],y+2.6,q[1],.3,5.2,.3,DARK);lantern(D,q[0],y+5.6,q[1],1,LCOL(),e?1:0)}
+    furnish(D,...(()=>{const a=P(dist+1.5,-bw/2+1.5),b=P(dist+dep-1.5,bw/2-1.5);return[Math.min(a[0],b[0]),Math.min(a[1],b[1]),Math.max(a[0],b[0]),Math.max(a[1],b[1])]})(),y,RI(5,9),true);
+    for(let i=RI(2,6);i>0;i--){const q=P(dist+R(1.5,dep-1.5),R(-.4,.4)*bw);person(D,q[0],y,q[1])}}
+  rec(T,{lx:pc[0],lz:pc[1],fy,side,s:0,dist,dep:Math.min(dep,8),bw:Math.min(bw,len),cx,cz});
+  {const q=xfP(...P(dist+dep,0)),n=xfD(nx,nz);(window.__lm=window.__lm||[]).push([T.name,kind,q[0],fy,q[1],n[0],n[1]])}
+}
+// a giant tree growing out of the roof garden, its crown seen from across the city
+function giantTree(B,x,y,z,pal){const big=R(54,72);
+  B.wood.at(new THREE.CylinderGeometry(5.5,6.2,1.4,14),x,y+.7,z,1,1,1,STONE);B.flat.at(new THREE.TorusGeometry(3.2,.4,6,18),x,y+4,z,1,1,1,STRAW,Math.PI/2);
+  for(let k=0;k<6;k++){const a=k/6*6.283;B.cloth.quad(...[a,a+.22].map(t=>[x+Math.cos(t)*3.4,y+3.8,z+Math.sin(t)*3.4]).concat([[x+Math.cos(a+.22)*3.4,y+2.4,z+Math.sin(a+.22)*3.4],[x+Math.cos(a)*3.4,y+2.4,z+Math.sin(a)*3.4]]),WHITE,0,1,1,0)}
+  addSprite(SPRS.trees,x,y+1,z,big,treeCell(pal),0,chance(.5)?1:-1);
+  for(let k=0;k<7;k++){const a=k/7*6.283+R(-.3,.3),r=R(5,10);addSprite(SPRS.trees,x+Math.cos(a)*r,y+R(1,9),z+Math.sin(a)*r,big*R(.42,.6),treeCell(pal),0,chance(.5)?1:-1)}
+  addCol(x,y+9,z,4,18,4)}
+// a great vermilion torii standing on the roof, facing the heart of the city
+function moonRing(B,x,y,z,sz,ang){const sp=Math.min(17,sz*.55),h=sp*1.05,ax=Math.cos(ang),az=-Math.sin(ang),q=new THREE.Quaternion().setFromAxisAngle(UP,ang),P=a=>[x+ax*a,z+az*a];
+  for(const e of[-1,1]){const [px,pz]=P(e*sp/2);B.wood.box(px,y+h/2,pz,1.4,h,1.4,RED);B.wood.box(px,y+.7,pz,2.4,1.4,2.4,DARK);addCol(px,y+h/2,pz,1.6,h,1.6)}
+  B.wood.box(x,y+h*.78,z,sp+3.2,1,1,RED,q);   // nuki
+  B.wood.box(x,y+h+.15,z,sp+5,.9,1.3,RED,q);B.wood.box(x,y+h+.95,z,sp+7.5,.8,1.8,DARK,q);   // shimaki and kasagi
+  for(const e of[-1,1]){const [px,pz]=P(e*(sp/2+3.4));B.wood.box(px,y+h+1.45,pz,2.2,.6,1.8,DARK,q)}   // its turned-up ends
+  B.wood.box(x,y+h*.89,z,1.1,h*.22,.6,RED,q);B.wood.box(x,y+h*.89,z,2.6,3.2,.7,DARK,q);   // the tablet
+  for(const e of[-1,1]){const [px,pz]=P(e*sp*.22);lantern(B,px,y+h*.78-2.4,pz,1.6,LRED,0)}}
+// seven star lanterns on poles of different heights across the roof, the Dipper's shape, roped together
+function starPoles(B,x,y,z,w,d){const sh=[[0,0],[.9,.2],[1.8,.3],[2.7,.15],[2.95,-.85],[3.9,-1.05],[4.15,-.1]],k=Math.min(w,d)/5.2,ang=R(0,6.283),c=Math.cos(ang),sn=Math.sin(ang);let prev=null;
+  sh.forEach(([u,v],i)=>{const lx=x+(u-2)*k*c-v*k*sn,lz=z+(u-2)*k*sn+v*k*c,h=15+((i*7)%5)*3.6+v*2.2;B.wood.box(lx,y+h/2,lz,.45,h,.45,DARK);B.wood.box(lx,y+.5,lz,1.4,1,1.4,STONE);
+    B.glow.at(ico1,lx,y+h+1.6,lz,2,2,2,C('#ffe2a0'));B.wood.box(lx,y+h+.2,lz,1.8,.35,1.8,DARK);const [wx,wz]=xfP(lx,lz),q=[wx,y+h+1.6,wz];lanternPts.push(wx,y+h+1.6,wz);
+    if(prev)ropeP.push(...prev,...q);prev=q})}
+// a long cloth sign held off the wall on rods, in front of the little window eaves
+function wallSign(B,cx,cz,side,dist,s,wd,y0,h,cell){const [nx,nz]=NRM[side],tx=nz,tz=-nx,X=side<2,o=dist+2.35;
+  banner(B,cx,cz,side,o,s,wd,y0,h,cell,.22);
+  for(const [yy,th] of[[y0+h+.15,.26],[y0+h*.5,.16]]){
+    for(const e of[-1,1]){const q=[cx+nx*(dist+1.2)+tx*(s+e*wd*.4),cz+nz*(dist+1.2)+tz*(s+e*wd*.4)];B.wood.box(q[0],yy,q[1],X?2.4:th,th,X?th:2.4,DARK)}}
+  const q=[cx+nx*(o+.05)+tx*s,cz+nz*(o+.05)+tz*s];B.wood.box(q[0],y0+h+.15,q[1],X?.24:wd+.6,.24,X?wd+.6:.24,DARK)}
+// one end of a sky plaza: where on this wall the deck meets it (toward the other tower), how wide it may be
+// one end of a sky plaza: the outer edge of a full-length balcony whose rail has been left off; the deck takes the whole face
+function plazaEnd(B,T,cx,cz,side,len,dist,fy,L){
+  const [nx,nz]=NRM[side],tx=nz,tz=-nx;
+  L.ends.push({c:xfP(cx+nx*(dist+4.5),cz+nz*(dist+4.5)),t:xfD(tx,tz),n:xfD(nx,nz),y:fy+.4,hw:len/2,T,L});
+}
 // a room hung off the side of the tower on struts
 function sideHouse(B,T,cx,cz,side,y,h,w,d){
   const len=side<2?d:w,dist=(side<2?w:d)/2,[nx,nz]=NRM[side],tx=nz,tz=-nx,X=side<2,floors=Math.max(1,Math.round(h/7));
@@ -1021,19 +1122,11 @@ function sideHouse(B,T,cx,cz,side,y,h,w,d){
   else roof(B.roof,px,my+mh-.4,pz,Math.max(.3,sx-sz),Math.max(.3,sz-sx),sx+5,sz+5,3.6,T.rc,1,3);
   if(chance(.35))karahafu(B,cx,cz,side,dist+md-.3,s,my+mh-1.6,Math.min(mw-1.5,8),2.4,1.5,T.rc);
   const q=new THREE.Quaternion().setFromUnitVectors(UP,new V3(nx,1,nz).normalize());
-  for(const e of[-1,1])B.wood.box(cx+nx*(dist+md*.45)+tx*(s+e*mw*.35),my-md*.45,cz+nz*(dist+md*.45)+tz*(s+e*mw*.35),.5,md*1.3,.5,DARK,q);
+  for(const e of[-1,1]){const a=s+e*mw*.35;brace(B,cx+nx*dist+tx*a,cz+nz*dist+tz*a,my-md*.9,cx+nx*(dist+md*.9)+tx*a,my,cz+nz*(dist+md*.9)+tz*a,.5)}
   const a=[cx+nx*(dist+md+.7)+tx*(s-mw/2),cz+nz*(dist+md+.7)+tz*(s-mw/2)],b=[cx+nx*(dist+md+.7)+tx*(s+mw/2),cz+nz*(dist+md+.7)+tz*(s+mw/2)];
   if(chance(.7))lanternRow(B.D,a[0],my+mh-1.4,a[1],b[0],my+mh-1.4,b[1],2.4,.4,RI(0,1));else lantern(B.D,b[0],my+mh-2.2,b[1],1.4,LCOL(),RI(0,1));
   if(chance(.5))banner(B.D,cx,cz,side,dist+md,s-mw*.3,2.2,my-7.5,7.5,RI(0,GENERAL.length-1));
   if(chance(.35))hangChain(B.D,b[0],my-.2,b[1],RI(2,4),1);
-}
-// an outside stair climbing one storey along the wall
-function stairs(B,cx,cz,side,w,d,fy,fh){
-  const len=side<2?d:w,dist=(side<2?w:d)/2,[nx,nz]=NRM[side],tx=nz,tz=-nx,X=side<2,run=Math.min(9,len-5);if(run<5)return;
-  const a0=R(-len/2+1.5,len/2-run-1.5),dv=new V3(tx*run,fh,tz*run),L=dv.length(),q=new THREE.Quaternion().setFromUnitVectors(UP,dv.normalize());
-  const mx=cx+nx*(dist+1.1)+tx*(a0+run/2),mz=cz+nz*(dist+1.1)+tz*(a0+run/2);
-  B.wood.box(mx,fy+fh/2+.2,mz,X?1.6:.3,L,X?.3:1.6,PLANK,q);B.wood.box(mx+nx*.8,fy+fh/2+1.5,mz+nz*.8,.16,L,.16,DARK,q);
-  for(const e of[0,1]){const a=a0+e*run+(e?1.1:-1.1);B.wood.box(cx+nx*(dist+1.2)+tx*a,fy+.25+e*fh,cz+nz*(dist+1.2)+tz*a,2.4,.3,2.4,PLANK)}
 }
 function bays(B,T,cx,cz,side,len,dist,fy,plain,ground,fh){
   const [nx,nz]=NRM[side],tx=nz,tz=-nx,ph=fh-.8,np=Math.max(1,Math.round(len/(fh*1.15))),pw=len/np,P=(dd,a)=>[cx+nx*dd+tx*a,cz+nz*dd+tz*a];
@@ -1063,8 +1156,19 @@ function segXF(T,scx,scz,tw){
   const ct=Math.cos(T.yaw),st=Math.sin(T.yaw),cd=Math.cos(tw),sd=Math.sin(tw),ox=scx-(cd*scx-sd*scz),oz=scz-(sd*scx+cd*scz),a=T.yaw+tw;
   XF={c:Math.cos(a),s:Math.sin(a),x:T.x+ct*ox-st*oz,z:T.z+st*ox+ct*oz};
 }
+// the landmark a tall tower is known by, from its name: a tree on the roof, a moon ring, star lanterns,
+// a grand gate out on a great deck high up, or its name on a huge cloth hung from a deck far out from the wall
+function landmarkKind(T){const n=T.name;
+  if(T.trans)return/櫻|梅|松|楓|柳|藤|栗|桃|柿|椿|竹|杉|桐|楠|梨|蘭|菊|萩|柚|木蓮|笹|白樺|楢|山茶花|撫子|若葉/.test(n)?'tree':chance(.6)?'gate':'moon';   // no name cloth for these: their names are not in the sign texture
+  if(/櫻|花見|梅|松|楓|紅葉|柳|藤/.test(n))return'tree';
+  if(/月見|雪見|夕凪|東雲|風月/.test(n))return'moon';
+  if(/星見|銀河|七星/.test(n))return'stars';
+  if(/飛翔|百貨|萬事|鶴|丹頂|錦/.test(n))return'gate';
+  if(/海|雲|波|藥|貓|天/.test(n))return'sign';
+  return chance(.55)?'sign':'gate'}
 function genTower(T,B){
   const mid=!!T.mid;if(T.yaw==null)T.yaw=R(0,6.283);
+  if(!mid&&T.lm==null){T.lm=landmarkKind(T);T.lmY=T.h*(T.lm==='gate'?R(.5,.78):R(.32,.6))}
   let cx=0,cz=0,w=T.w*(mid?1:1.2),d=T.d*(mid?1:1.2),y=1.2,seg=0,bandY=0,tw=0,fh=7,neck=false,prev=null;const segs=[];
   if(mid)newBand(B);
   segXF(T,0,0,0);
@@ -1073,7 +1177,7 @@ function genTower(T,B){
   {const a=pad/2;for(const [x0,z0,x1,z1] of[[cx-w/2-a,cz+d/2+3.8,cx+w/2+a,cz+d/2+a],[cx-w/2-a,cz-d/2-a,cx+w/2+a,cz-d/2-3.8],[cx+w/2+3.8,cz-d/2,cx+w/2+a,cz+d/2],[cx-w/2-a,cz-d/2,cx-w/2-3.8,cz+d/2]])
     if(x1>x0&&z1>z0)furnish(B.D,x0,z0,x1,z1,1.2,mid?RI(1,3):RI(5,10),!mid)}
   while(y<T.h-1){
-    segXF(T,cx,cz,tw);
+    segXF(T,cx,cz,tw);TWC={segs,y0:y};
     const floors=clamp(Math.min(neck?RI(1,2):RI(2,5),Math.round((T.h-y)/fh)),1,5),h=floors*fh;
     B.wood.box(cx,y+h/2,cz,w,h,d,pick(WOODS));addCol(cx,y+h/2,cz,w,h,d);
     for(const a of[-1,1])for(const b of[-1,1])B.wood.box(cx+a*w/2,y+h/2,cz+b*d/2,1,h,1,DARK);
@@ -1086,9 +1190,12 @@ function genTower(T,B){
     for(const k of (T.links||[])){if(k.done||k.L.y<y+(seg?1:fh)||k.L.y>=y+h)continue;
       const lx=XF.c*k.dx+XF.s*k.dz,lz=-XF.s*k.dx+XF.c*k.dz,side=Math.abs(lx)>Math.abs(lz)?(lx>0?0:1):(lz>0?2:3);   // the side facing the other tower, in this block's frame
       const f=clamp(Math.round((k.L.y-y)/fh),seg?0:1,floors-1);if(plan.some(p=>p.f===f&&p.side===side&&p.link))continue;
-      for(let i=plan.length-1;i>=0;i--)if(plan[i].side===side)plan.splice(i,1);
+      for(let i=plan.length-1;i>=0;i--)if(plan[i].side===side&&!plan[i].link)plan.splice(i,1);
       if(ms===side)ms=-1;if(ms2===side)ms2=-1;
-      plan.push({side,f,link:k.L});k.done=true}
+      plan.push({side,f,link:k.L,k});k.done=true}
+    if((T.lm==='sign'||T.lm==='gate')&&!T.lmDone&&!neck&&(seg>0||floors>1)&&T.lmY<y+h){let sd=open.filter(s2=>!plan.some(p=>p.side===s2));
+      {const away=sd.filter(s2=>{const n=xfD(...NRM[s2]);return!(T.links||[]).some(k=>n[0]*k.dx+n[1]*k.dz>.4)});if(away.length)sd=away}   // not on the face where bridges and plazas will come in
+      if(sd.length){const side=sd.sort((a,b)=>(a<2?d:w)-(b<2?d:w))[sd.length-1],f=clamp(Math.round((T.lmY-y)/fh),seg?0:1,floors-1);plan.push({side,f,lm:T.lm});T.lmDone=true}}
     const flagSides=open.filter(s=>!plan.some(p=>p.side===s));
     // decide every floor first (veranda, terrace, balcony full-length or partial) so stairs can be planned before anything is built
     const verF=[],kind=[];   // kind: 0 nothing, 1 short balcony, 2 full-length balcony, 3 terrace
@@ -1096,7 +1203,7 @@ function genTower(T,B){
       for(let side=0;side<4;side++){const free=up&&!verF[f]&&side!==ms&&side!==ms2;kind[f][side]=!free?0:plan.some(p=>p.side===side&&p.f===f)?3:chance(.88)?(chance(.5)?2:1):0}}
     // stairs between full-length balconies stacked on the same side; the flight runs along the wall inside the balcony,
     // and the balcony above gets an opening in its floor where the flight comes up through it
-    const flights=[];
+    const flights=[],skirtF=[];
     for(let side=0;side<4;side++){const len=side<2?d:w,run=fh*1.3;if(len<run+5)continue;
       for(let f=0;f<floors-1;f++)if(kind[f][side]===2&&kind[f+1][side]===2&&chance(.55)){
         if(chance(.45)){const LD=2.2,sw=4.5*(chance(.5)?1:.8);if(len<run+2*LD+2)continue;   // outside the rail: openings in the rails, not the floors
@@ -1107,13 +1214,16 @@ function genTower(T,B){
       const fy=y+f*fh,up=seg>0||f>0,ground=!up,ver=verF[f];
       B.wood.box(cx,fy+.3,cz,w+1,.6,d+1,DARK);
       if(ver)veranda(B,T,cx,cz,w,d,fy,fh);
-      else if(f>0&&!flights.some(t=>t.f===f-1&&!t.out)&&chance(mid?.3:.45))roof(B.roof,cx,fy-.9,cz,w,d,w+6,d+6,1.9,T.rc,.9,2);   // no skirt roof where a stairwell comes up
+      else if(f>0&&!flights.some(t=>t.f===f-1&&!t.out)&&!plan.some(p=>p.f===f&&(p.lm||p.link&&p.link.style==='plaza'))&&chance(mid?.3:.45)){roof(B.roof,cx,fy-.9,cz,w,d,w+6,d+6,1.9,T.rc,.9,2);skirtF[f]=1}   // no skirt roof where a stairwell comes up
       for(let side=0;side<4;side++){
         const len=side<2?d:w,dist=(side<2?w:d)/2,[nx,nz]=NRM[side],tx=nz,tz=-nx,free=up&&!ver&&side!==ms&&side!==ms2,tp=plan.find(p=>p.side===side&&p.f===f);
         const lo=flights.find(t=>t.side===side&&t.f===f),hi=flights.find(t=>t.side===side&&t.f===f-1);
-        bays(B,T,cx,cz,side,len,dist,fy,ver||!!(lo&&!lo.out),ground,fh);   // no little window eaves along a wall with a flight on it
+        const pz=free&&tp&&tp.link&&tp.link.style==='plaza';
+        bays(B,T,cx,cz,side,len,dist,fy,ver||!!(lo&&!lo.out),ground||pz,fh);   // no little window eaves along a wall with a flight on it
         if(ground)shopfront(B,T,cx,cz,side,len,dist,fy);
-        if(free&&tp)terrace(B,T,cx,cz,side,len,dist,fy,f<floors-1,tp.link);
+        if(pz){balcony(B,T,cx,cz,side,len,dist,fy,{full:true,noOuter:true,quiet:true});plazaEnd(B,T,cx,cz,side,len,dist,fy,tp.link)}
+        else if(free&&tp&&tp.lm)landmarkDeck(B,T,cx,cz,side,len,dist,fy,tp.lm);
+        else if(free&&tp)terrace(B,T,cx,cz,side,len,dist,fy,f<floors-1,tp.link);
         else if(free&&kind[f][side]){
           const li=lo&&!lo.out?lo:null,hn=hi&&!hi.out?hi:null,lout=lo&&lo.out?lo:null,hout=hi&&hi.out?hi:null,gaps=[];
           if(lout)gaps.push([lout.a0-lout.LD,lout.a0]);if(hout)gaps.push([hout.a1,hout.a1+hout.LD]);
@@ -1128,15 +1238,21 @@ function genTower(T,B){
     }
     if(ms>=0)sideHouse(B,T,cx,cz,ms,y,h,w,d);
     if(ms2>=0&&ms2!==ms)sideHouse(B,T,cx,cz,ms2,y,h,w,d);
-    if(chance(.55)){const side=flagSides.length?pick(flagSides):RI(0,3),len=side<2?d:w,dist=(side<2?w:d)/2,bh=Math.min(h-2,R(10,22));
-      if(bh>5)banner(B,cx,cz,side,dist+.7,R(-.35,.35)*len,bh/3.6,y+h-1.5-bh,bh,RI(0,GENERAL.length-1),1.2)}
+    // runs of storeys where a side's wall is bare top to bottom: no balcony, terrace, veranda, stair or skirt roof crossing it, no struts from above
+    const clr=[0,1,2,3].map(side=>{if(side===ms||side===ms2||flights.some(t=>t.side===side))return null;let best=null;
+      for(let f0=seg?0:1;f0<floors;f0++){if(f0>0&&verF[f0-1])continue;let f1=f0-1;
+        for(let f=f0;f<floors;f++){if(verF[f]||kind[f][side]||(f>f0&&skirtF[f])||(kind[f+1]&&kind[f+1][side]===3)||(kind[f+2]&&kind[f+2][side]===3))break;f1=f}
+        if(f1>=f0&&(!best||f1-f0>best[1]-best[0]))best=[f0,f1]}
+      if(!best)return null;const cut=best[1]+1<floors?(kind[best[1]+1][side]?2.4:.7):1.6;return{y0:y+best[0]*fh+.9,y1:y+(best[1]+1)*fh-cut}});
+    {const cs=[0,1,2,3].filter(sd=>clr[sd]&&clr[sd].y1-clr[sd].y0>5);
+     if(cs.length&&chance(.55)){const side=pick(cs),c=clr[side],len=side<2?d:w,dist=(side<2?w:d)/2,bh=Math.min(c.y1-c.y0,R(10,22));wallSign(B,cx,cz,side,dist,R(-.3,.3)*len,Math.min(bh/3.6,5),c.y1-bh,bh,RI(0,GENERAL.length-1));c.used=true}}
     if(flagSides.length&&chance(T.type==='com'?.6:.35))for(let k=RI(1,2);k>0;k--){
-      const side=pick(flagSides),len=side<2?d:w,dist=(side<2?w:d)/2,ytop=y+h-1.2,fl=Math.min(R(18,32),ytop-4);
+      const side=pick(flagSides),len=side<2?d:w,dist=(side<2?w:d)/2,ytop=y+h-1.2,fl=Math.min(R(18,32),h-4.5);
       if(fl>=12)bigFlag(B,cx,cz,side,dist,R(-.42,.42)*len,ytop,fl,chance(.4)?T.cell:RI(0,GENERAL.length-1))}
     if(flagSides.length&&chance(T.type==='com'?.6:.3))for(let k=RI(1,3);k>0;k--){   // signboards hung on chains
       const side=pick(flagSides),len=side<2?d:w,dist=(side<2?w:d)/2,f=RI(seg>0?0:1,floors-1);
       if(f<floors)hangSign(B,cx,cz,side,dist,R(-.4,.4)*len,y+f*fh+fh-.6,RI(0,GENERAL.length-1))}
-    segs.push({cx,cz,w,d,y,h,xf:XF});y+=h;seg++;
+    segs.push({cx,cz,w,d,y,h,xf:XF,clr});y+=h;seg++;
     if(y<T.h-1){
       // the next block: shifted, a new width, often a slight twist, its own storey height; now and then a slender neck that flares into a broad platform
       const ow=w,od=d,ox=cx,oz=cz;prev={cx,cz,w,d,h,neck};
@@ -1158,15 +1274,20 @@ function genTower(T,B){
     }
     if(y-bandY>84){newBand(B);bandY=y}
   }
+  TWC=null;
   // crown: roof garden, great gable, hip-and-gable, curved gable, or pagoda
-  const ct=rand();
+  const ct=T.lm==='tree'||T.lm==='moon'||T.lm==='stars'?0:rand();
   if(ct<(mid?.36:.24)){
     roof(B.roof,cx,y-2.3,cz,w,d,w+9,d+9,2.2,T.rc,1.2,2);deck(B,cx,y-.2,cz,w+3,d+3);
-    house(B,cx+R(-3,3),y+.2,cz+R(-3,3),9.6,9.6,1,T.rc,false,true);
-    furnish(B.D,cx-w/2,cz-d/2,cx+w/2,cz+d/2,y+.2,RI(10,18),true);
+    const rl=T.lm==='tree'||T.lm==='moon'||T.lm==='stars';
+    if(!rl)house(B,cx+R(-3,3),y+.2,cz+R(-3,3),9.6,9.6,1,T.rc,false,true);
+    furnish(B.D,cx-w/2,cz-d/2,cx+w/2,cz+d/2,y+.2,rl?RI(6,10):RI(10,18),true);
+    if(T.lm==='tree')giantTree(B,cx,y+.2,cz,/櫻|花見|梅|藤|桔梗|桃|椿|木蓮|山茶花|撫子/.test(T.name)?PINKS:/楓|紅葉|柿|栗/.test(T.name)?AUTUMN:GREENS);
+    if(T.lm==='moon'){const l=Math.hypot(T.x,T.z)||1,wx=-T.x/l,wz=-T.z/l;moonRing(B,cx,y+.2,cz,Math.min(w,d),Math.atan2(XF.c*wx+XF.s*wz,-XF.s*wx+XF.c*wz))}   // facing the heart of the city
+    if(T.lm==='stars')starPoles(B,cx,y+.2,cz,w,d);
     B.wood.at(barrelG,cx+w/2-3.5,y+2.4,cz-d/2+3.5,5,4,5,pick(WOODS));
     if(chance(.7)){const a=[cx-w/2-1,cz-d/2-1],b=[cx+w/2+1,cz+d/2+1];lanternRow(B.D,a[0],y+4.6,a[1],b[0],y+4.6,b[1],3,1.4,RI(0,1))}
-    T.top=y+12;
+    T.top=y+(T.lm==='tree'?60:T.lm==='moon'?Math.min(w,d)*.9+4:T.lm==='stars'?34:12);
   }else if(ct<(mid?.58:.42)){
     roof(B.roof,cx,y-1.6,cz,w,d,w+13,d+13,3.6,T.rc,2,3);roofGable(B,cx,y+1.4,cz,w+3,d+3,mid?8:13,T.rc,3.5);addCol(cx,y+4,cz,w*.6,8,d*.6);T.top=y+15;
   }else if(ct<(mid?.84:.62)){
@@ -1185,9 +1306,11 @@ function genTower(T,B){
       B.flat.at(ico0,cx,sy+2.6+sh*.62,cz,.9,.5,.9,SORIN);B.glow.at(ico0,cx,sy+sh+.6,cz,.8,1.1,.8,C('#f0c85a'));T.top=y+11}
   }
   // big name signs, each in the frame of the block it hangs on
-  for(let k=0;k<(mid?1:3);k++){const sg=segs[Math.floor(segs.length*(.25+.25*k))],side=(T.cell+k)%4,dist=(side<2?sg.w:sg.d)/2,bh=Math.min(20,sg.h-1);XF=sg.xf;
-    banner(B,sg.cx,sg.cz,side,dist+.9,0,bh/4,sg.y+sg.h-.5-bh,bh,T.cell,.6);
-    const [nx,nz]=NRM[side];B.wood.box(sg.cx+nx*(dist+.5),sg.y+sg.h-.3,sg.cz+nz*(dist+.5),side<2?1.4:bh/4+1,.4,side<2?bh/4+1:1.4,DARK)}
+  for(let k=0;k<(mid?1:3);k++){const want=Math.floor(segs.length*(mid?.5:.25+.25*k));let pickd=null;
+    for(let dd=0;dd<segs.length&&!pickd;dd++)for(const j of[want+dd,want-dd]){const sg=segs[j];if(!sg||!sg.clr)continue;
+      for(let q=0;q<4&&!pickd;q++){const side=(T.cell+k+q)%4,c=sg.clr[side];if(c&&!c.used&&c.y1-c.y0>8.5){pickd=[sg,side,c];c.used=true}}if(pickd)break}
+    if(!pickd)continue;const [sg,side,c]=pickd,dist=(side<2?sg.w:sg.d)/2,bh=Math.min(20,c.y1-c.y0);XF=sg.xf;
+    wallSign(B,sg.cx,sg.cz,side,dist,0,bh/4,c.y1-bh,bh,T.cell)}
   // delivery doors
   const u=cellUV(T.cell),cand=T.balconies.filter(b=>b.bw>=7&&b.fy>20).sort(()=>rand()-.5),doors=[];
   for(const b of cand){if(doors.length>=(mid?1:3))break;if(doors.some(o=>Math.abs(o.fy-b.fy)<45))continue;doors.push(b);b.used=true;XF=b.xf;
@@ -1212,9 +1335,10 @@ const links=[];
   towers.push({x,z,w:R(24,40),d:R(24,40),h:first?430:R(240,720),type:r<260?'com':'res',rc:pick(ROOFS),name:towerNames[towers.length],cell:GENERAL.length+towers.length,balconies:[]});
  }
  // bridges between neighbouring towers are decided first, so each end can be given a terrace facing the other tower
- {let na=0,nw=0;
+ {let na=0,nw=0,np=0;
   for(let i=0;i<towers.length;i++)for(let j=i+1;j<towers.length;j++){const A=towers[i],Bt=towers[j],dx=Bt.x-A.x,dz=Bt.z-A.z,dist=Math.hypot(dx,dz);if(dist>150)continue;
-    const top=Math.min(A.h,Bt.h),add=(style,y)=>{const L={style,y,ends:[]};links.push(L);(A.links=A.links||[]).push({L,dx:dx/dist,dz:dz/dist});(Bt.links=Bt.links||[]).push({L,dx:-dx/dist,dz:-dz/dist})};
+    const top=Math.min(A.h,Bt.h),add=(style,y)=>{const L={style,y,ends:[],W:R(10,15)};links.push(L);(A.links=A.links||[]).push({L,dx:dx/dist,dz:dz/dist});(Bt.links=Bt.links||[]).push({L,dx:-dx/dist,dz:-dz/dist})};
+    if(np<22&&dist<128&&chance(.7)&&!towers.some(t=>t!==A&&t!==Bt&&(()=>{const u=clamp(((t.x-A.x)*dx+(t.z-A.z)*dz)/(dist*dist),0,1);return Math.hypot(A.x+dx*u-t.x,A.z+dz*u-t.z)<Math.max(t.w,t.d)*.75+12})())){np++;add('plaza',top*R(.12,.8))}
     if(na<24&&chance(.7)){na++;add('arch',top*R(.3,.85))}
     for(let q=0;q<2;q++)if(nw<36&&chance(.55)){nw++;add('walk',top*R(.15,.9))}
   }}
@@ -1302,6 +1426,95 @@ function walkBridge(B,a,b){
     B.wood.box(p.x,p.y+3.6,p.z,.3,.3,4.6,DARK,alongQ(sv));lantern(B,p.x,p.y+2.8,p.z,.9,LCOL(),1);
     addCol(p.x,p.y-.2,p.z,6,1,6);if(chance(.3))person(B,p.x+sv.x*R(-1.3,1.3),p.y,p.z+sv.z*R(-1.3,1.3))}
 }
+// a quad from four points, turned to face 'want'
+const DOWN=new V3(0,-1,0);
+function fq(buf,p,want,col,ru=1,rv=1){_a.set(p[1].x-p[0].x,p[1].y-p[0].y,p[1].z-p[0].z);_b.set(p[3].x-p[0].x,p[3].y-p[0].y,p[3].z-p[0].z);_a.cross(_b);
+  const q=_a.dot(want)<0?[p[0],p[3],p[2],p[1]]:p;buf.quad([q[0].x,q[0].y,q[0].z],[q[1].x,q[1].y,q[1].z],[q[2].x,q[2].y,q[2].z],[q[3].x,q[3].y,q[3].z],col,0,0,ru,rv)}
+function tbeam(B,a,b,th,col){const d=b.clone().sub(a),L=d.length();if(L<.05)return;const m=a.clone().add(b).multiplyScalar(.5);B.wood.box(m.x,m.y,m.z,th,th,L,col,alongQ(d.normalize()))}
+// a slab between four corner points (top face), th thick
+function slab4(B,p,th,col,ru,rv){const q=p.map(v=>v.clone().setY(v.y-th)),c=p.reduce((m,v)=>m.add(v),new V3()).multiplyScalar(.25);
+  fq(B.wood,p,UP,col,ru,rv);fq(B.wood,q,DOWN,col,ru,rv);
+  for(let i=0;i<4;i++){const j=(i+1)%4,m=p[i].clone().add(p[j]).multiplyScalar(.5).sub(c).setY(0);fq(B.wood,[p[i],p[j],q[j],q[i]],m,col,Math.max(.2,p[i].distanceTo(p[j])/5),th/5)}}
+// a sky plaza: the floor of one tower runs straight out across the gap and becomes the floor of the other.
+// Where the two floors differ in height it steps, the full width of the deck, in one to four short flights between level stretches;
+// its edges follow each tower's own wall, so the deck fans to meet two walls at different angles.
+// Held up by raking struts from the walls below and iron stays from the walls above; a street of stalls and lanterns on top.
+function skyPlaza(B,a,b){
+  const dx=b.c[0]-a.c[0],dz=b.c[1]-a.c[1],D=Math.hypot(dx,dz),ux=dx/D,uz=dz/D;
+  if(D<12||ux*a.n[0]+uz*a.n[1]<.4||-(ux*b.n[0]+uz*b.n[1])<.4)return false;
+  const Wa=a.hw*2-.3,Wb=b.hw*2-.3,W=Math.min(Wa,Wb);   // face to face: each end as wide as its own wall
+  const sl=[-uz,ux],ta=a.t[0]*sl[0]+a.t[1]*sl[1]<0?[-a.t[0],-a.t[1]]:a.t,tb=b.t[0]*sl[0]+b.t[1]*sl[1]<0?[-b.t[0],-b.t[1]]:b.t;
+  const E=(u,v,y)=>new V3(lerp(a.c[0]+ta[0]*Wa/2*v,b.c[0]+tb[0]*Wb/2*v,u),y,lerp(a.c[1]+ta[1]*Wa/2*v,b.c[1]+tb[1]*Wb/2*v,u));
+  const W0=(e,q)=>q.clone().sub(new V3(e.n[0]*4.5,0,e.n[1]*4.5));   // from the deck's end back across the balcony to the wall
+  for(let u=2/D;u<1-2/D;u+=2/D)for(const v of[-.9,-.45,0,.45,.9]){const p=E(u,v,lerp(a.y,b.y,u));if(hitTest(p.x,p.y+1.6,p.z,.6)||hitTest(p.x,p.y+4.2,p.z,.6)||u>.3&&u<.7&&hitTest(p.x,p.y+7.6,p.z,.6))return false}   // the gate in the middle stretch stands this tall
+  // level stretches and the flights between them
+  const dy=b.y-a.y,g=Math.abs(dy)<.3?0:clamp(Math.ceil(Math.abs(dy)/1.7),1,4),m=g?Math.max(2,Math.round(Math.abs(dy)/g/.24)):0;
+  let tr=.42;if(g&&(1-g*m*tr/D)/(g+1)*D<4)tr=.3;
+  const gu=m*tr/D,fu=(1-g*gu)/(g+1);if(fu*D<3)return false;
+  const flats=[],steps=[];{let u=0,y=a.y;for(let i=0;i<=g;i++){flats.push({u0:u,u1:u+fu,y});u+=fu;if(i<g){for(let j=0;j<m;j++){steps.push({u0:u,u1:u+gu/m,y:y+dy/g*(j+1)/m});u+=gu/m}y+=dy/g}}}
+  const yAt=u=>{for(let i=0;i<flats.length;i++){const f=flats[i];if(u<=f.u1)return f.y;const nf=flats[i+1];if(nf&&u<nf.u0)return lerp(f.y,nf.y,(u-f.u1)/(nf.u0-f.u1))}return b.y};
+  const red=chance(.4),rc=red?RED:DARK;
+  for(const f of flats)slab4(B,[E(f.u0,-1,f.y),E(f.u0,1,f.y),E(f.u1,1,f.y),E(f.u1,-1,f.y)],.5,PLANK,W/5,(f.u1-f.u0)*D/5);
+  for(const t of steps)slab4(B,[E(t.u0,-1,t.y),E(t.u0,1,t.y),E(t.u1,1,t.y),E(t.u1,-1,t.y)],Math.abs(dy)/g/m+.35,PLANK,W/5,.1);
+  // girders along the edges and the middle, joists across
+  for(const v of[-.92,0,.92]){let prev=null;for(const f of flats){const p0=E(f.u0,v,f.y-.75),p1=E(f.u1,v,f.y-.75);if(prev)tbeam(B,prev,p0,.7,DARK);tbeam(B,p0,p1,.7,DARK);prev=p1}}
+  for(let u=1.5/D;u<1;u+=3.2/D){const y=yAt(u)-.75;tbeam(B,E(u,-1,y),E(u,1,y),.45,DARK)}
+  // rails along both edges, stepping with the deck, posts every few metres, gate posts with lanterns now and then
+  for(const v of[-1,1]){let prev=null;const pts=[];for(const f of flats){pts.push([f.u0,f.y],[f.u1,f.y])}
+    for(const [u,y] of pts){const p=E(u,v*.97,y+1.2);if(prev)tbeam(B,prev,p,.22,rc);prev=p}
+    prev=null;for(const [u,y] of pts){const p=E(u,v*.97,y+.65);if(prev)tbeam(B,prev,p,.14,rc);prev=p}
+    const np=Math.max(2,Math.round(D/3));for(let k=0;k<=np;k++){const u=k/np,y=yAt(u),p=E(u,v*.97,y+.6);B.wood.box(p.x,p.y,p.z,.28,1.3,.28,rc)}}
+  for(const f of flats){const L=(f.u1-f.u0)*D;if(L<9)continue;
+    for(let k=1,n=Math.floor(L/9);k<=n;k++){const u=f.u0+(f.u1-f.u0)*k/(n+1),pa=E(u,-.97,f.y),pb=E(u,.97,f.y);if(u*D<7||(1-u)*D<7)continue;   // not under the balconies and terraces by the walls
+      for(const q of[pa,pb]){B.wood.box(q.x,q.y+2.8,q.z,.32,5.6,.32,rc);lantern(B,q.x,q.y+5.9,q.z,.9,LCOL(),2)}
+      lanternRow(B,pa.x,pa.y+5.4,pa.z,pb.x,pb.y+5.4,pb.z,2.4,.9,RI(0,1))}}
+  // the middle stretch: a gate across the deck, a little roofed rest-house, or a big tree in a stone ring
+  {const f=flats[Math.floor(flats.length/2)],u=(f.u0+f.u1)/2,pa=E(u,-1.04,f.y),pb=E(u,1.04,f.y),k=rand(),Lf=(f.u1-f.u0)*D;
+   if(k<.45||Lf<9){for(const q of[pa,pb]){B.wood.box(q.x,q.y+3.6,q.z,.6,7.2,.6,rc);B.wood.box(q.x,q.y+.4,q.z,1,.8,1,STONE)}
+     tbeam(B,pa.clone().setY(f.y+7.4),pb.clone().setY(f.y+7.4),.6,rc);tbeam(B,pa.clone().setY(f.y+6.5),pb.clone().setY(f.y+6.5),.4,rc);
+     const m=pa.clone().lerp(pb,.5);lantern(B,m.x,f.y+5.6,m.z,1.3,LRED,0)}
+   else{const c=E(u,0,f.y);XF={c:ux,s:uz,x:c.x,z:c.z};
+     if(k<.75){const hx=Math.min(3.4,Lf/2-1.5),hz=Math.min(3.2,W/2-1.6);   // rest-house: four posts, a hipped roof, benches
+       for(const a of[-1,1])for(const b of[-1,1])B.wood.box(a*hx,f.y+2.45,b*hz,.4,4.9,.4,DARK);
+       roof(B.roof,0,f.y+4.8,0,Math.max(.3,hx*2-hz*2+.6),.6,hx*2+3,hz*2+3,2.2,pick(ROOFS),1,3);
+       for(const b of[-1,1]){B.wood.box(0,f.y+.55,b*(hz-.5),hx*2-.8,.14,.7,PLANK);for(let i=RI(1,3);i>0;i--)person(B,R(-hx+.8,hx-.8),f.y+.25,b*(hz-.5))}
+       lantern(B,0,f.y+3.9,0,.9,LCREAM,2)}
+     else{B.wood.at(new THREE.CylinderGeometry(2.6,2.9,.9,12),0,f.y+.45,0,1,1,1,STONE);blobTree(B,0,f.y+.8,0,R(5,6.5),pick([PINKS,PINKS,GREENS,AUTUMN]));
+       for(let i=0;i<4;i++){const a=i*1.571+.4;B.wood.box(Math.cos(a)*3.6,f.y+.55,Math.sin(a)*3.6,1.8,.14,.6,PLANK)}}
+     XF=null}}
+  // a long span rides on two timber arches sprung from the walls below, with posts up to the deck
+  let arched=false;
+  if(D>40){const h0=Math.min(15,D*.2),wall=(e,u,y)=>{const q=E(u,0,y);return hitTest(q.x-e.n[0]*5.7,y,q.z-e.n[1]*5.7,.3)};
+    if(wall(a,0,a.y-h0)&&wall(b,1,b.y-h0)){arched=true;const n=Math.max(12,Math.round(D/2.5)),ay=u=>lerp(a.y,b.y,u)-h0+Math.sin(u*Math.PI)*(h0-1.6);
+      for(const v of[-.78,.78]){let prev=null;for(let k=0;k<=n;k++){const u=k/n,q0=E(u,v,ay(u)),q=k===0?W0(a,q0):k===n?W0(b,q0):q0;if(prev)tbeam(B,prev,q,.75,DARK);prev=q;
+          const top=yAt(u)-1.1;if(k%2===0&&k>0&&k<n&&top-q.y>.8)tbeam(B,q,E(u,v,top),.32,DARK)}
+        for(const [e,u] of[[a,0],[b,1]]){const q=W0(e,E(u,v,(u?b.y:a.y)-h0));B.wood.box(q.x,q.y,q.z,1.4,1.2,1.4,STONE)}}
+      for(let k=2;k<n-1;k+=3){const u=k/n;tbeam(B,E(u,-.78,ay(u)),E(u,.78,ay(u)),.35,DARK)}}}
+  // struts from the walls below, reaching a quarter of the way out; they only start where there is wall
+  if(!arched)for(const [e,u0,u1,sg] of[[a,0,.26,1],[b,1,.74,-1]])for(const v of[-.7,.7])for(const [reach,drop] of[[1,1],[.5,.55]]){
+    const ut=lerp(u0,u1,reach),top=E(ut,v,yAt(ut)-1.05);let yb=e.y-Math.min(17,D*.3)*drop,bp=null;
+    for(;yb<e.y-3;yb+=1.5){const q=W0(e,E(u0,v,yb));if(hitTest(q.x-e.n[0]*1.2,q.y,q.z-e.n[1]*1.2,.3)){bp=q;break}}
+    if(bp){tbeam(B,bp,top,.6,DARK);B.wood.box(bp.x,bp.y,bp.z,1.1,.9,1.1,DARK)}}
+  // iron stays from the walls above to the deck edges
+  for(const [e,u0,us] of[[a,0,[.16,.3,.44]],[b,1,[.84,.7,.56]]]){const ya=e.y+R(13,19);
+    for(const v of[-1,1]){const an=W0(e,E(u0,v*.92,ya));if(!hitTest(an.x-e.n[0]*1.2,an.y,an.z-e.n[1]*1.2,.4))continue;
+      let any=false;for(const u of us){const q=E(u,v,yAt(u)+.1);let ok=true;   // a stay may not pass through the balconies of the floors above
+        for(let k=1;k<10&&ok;k++){const t=k/10,x=lerp(an.x,q.x,t),y=lerp(an.y,q.y,t),z=lerp(an.z,q.z,t);if(t>.08&&hitTest(x,y,z,.25))ok=false}
+        if(ok){tbeam(B,an,q,.12,DARK);any=true}}
+      if(any)B.wood.box(an.x,an.y,an.z,1,1.2,1,DARK)}}
+  // street life on each level stretch
+  for(const f of flats){const L=(f.u1-f.u0)*D,c=E((f.u0+f.u1)/2,0,f.y);XF={c:ux,s:uz,x:c.x,z:c.z};
+    const hl=L/2-1.2,hw=W/2-2.2;if(hl>1.5&&hw>1){furnish(B,-hl,-hw,hl,hw,f.y,Math.round(L*W/26),true);
+      for(let i=Math.round(L*W/45);i>0;i--)person(B,R(-hl,hl),f.y,R(-hw,hw))}
+    XF=null}
+  for(let u=1.2/D;u<1;u+=2.6/D)for(let v=-.85;v<.9;v+=.34){const p=E(u,v,yAt(u));addCol(p.x,p.y-.25,p.z,3.4,.7,3.4)}
+  (window.__plaza=window.__plaza||[]).push([a.c[0],a.y,a.c[1],b.c[0],b.y,b.c[1],g]);
+  return true}
+// where a plaza could not be built: a plain balcony on that floor instead
+// where a plaza could not be built: the balcony keeps its outer rail after all
+function ledge(B,e){const t=new V3(e.t[0],0,e.t[1]),c=new V3(e.c[0],e.y,e.c[1]),p0=c.clone().addScaledVector(t,-e.hw),p1=c.clone().addScaledVector(t,e.hw);
+  tbeam(B,p0.clone().setY(e.y+1.1),p1.clone().setY(e.y+1.1),.22,DARK);tbeam(B,p0.clone().setY(e.y+.45),p1.clone().setY(e.y+.45),.14,DARK);
+  const k=Math.max(2,Math.round(e.hw*2/3.5)+1);for(let i=0;i<k;i++){const q=p0.clone().lerp(p1,i/(k-1));B.wood.box(q.x,e.y+.55,q.z,.3,1.5,.3,DARK)}}
 // the outer railing of a terrace, with an opening (and stout end posts) wherever a footbridge lands
 function edgeRail(B,r,gaps){
   XF=r.xf;const [nx,nz]=NRM[r.side],tx=nz,tz=-nx,X=r.side<2,P=a=>[r.cx+nx*r.o+tx*(r.s+a),r.cz+nz*r.o+tz*(r.s+a)],g=gaps.length?Math.max(...gaps)/2:0;
@@ -1347,13 +1560,15 @@ const S=newBufs();
   }
   // the planned links between towers: an arched vermilion bridge or a lantern-hung walkway, from terrace edge to terrace edge
   {let n=0;
-   for(const L of links){if(L.ends.length<2)continue;const [a,b]=L.ends,dx=b.p.x-a.p.x,dz=b.p.z-a.p.z,dh=Math.hypot(dx,dz);if(dh<10)continue;
+   let npz=0;
+   for(const L of links){if(L.style==='plaza'){if(L.ends.length===2&&skyPlaza(S,L.ends[0],L.ends[1]))npz++;else for(const e of L.ends)ledge(S,e);continue}
+     if(L.ends.length<2)continue;const [a,b]=L.ends,dx=b.p.x-a.p.x,dz=b.p.z-a.p.z,dh=Math.hypot(dx,dz);if(dh<10)continue;
      let ok=true;const steps=Math.ceil(dh/3);
      for(let k=1;k<steps&&ok;k++){const t=k/steps,al=t*dh;if(al<3||al>dh-3)continue;const ah=L.style==='arch'?Math.sin(t*Math.PI)*Math.min(15,dh*.14):0;if(hitTest(lerp(a.p.x,b.p.x,t),lerp(a.p.y,b.p.y,t)+1.3+ah,lerp(a.p.z,b.p.z,t),1.6)||ah>3&&hitTest(lerp(a.p.x,b.p.x,t),lerp(a.p.y,b.p.y,t)+3.5+ah,lerp(a.p.z,b.p.z,t),1.6))ok=false}
      if(!ok)continue;
      if(L.style==='arch')archBridge(S,a.p,b.p);else walkBridge(S,a.p,b.p);(window.__linkEnds=window.__linkEnds||[]).push([a,b,L.style]);
      const ux=dx/dh,uz=dz/dh,wd=L.style==='arch'?4.2:5;a.gaps.push(wd/Math.max(ux*a.nx+uz*a.nz,.45)+.9);b.gaps.push(wd/Math.max(-ux*b.nx-uz*b.nz,.45)+.9);a.n++;b.n++;n++}
-   window.__links=n+'/'+links.length}
+   window.__links=n+'/'+links.length+' plazas '+npz+'/'+links.filter(L=>L.style==='plaza').length}
   // footbridges between terraces that face each other across the gap
   {const pairs=[];
    for(let i=0;i<terraces.length;i++)for(let j=i+1;j<terraces.length;j++){const a=terraces[i],b=terraces[j];if(a.T===b.T)continue;
@@ -1515,7 +1730,9 @@ function vHouse(B,V,hx,y,hz,w,d,st,fs,fam,shop,door){
   return top+(rt<.72?3:2);
 }
 // rail along one edge of a deck, with an opening in the middle where a bridge lands
-function vRail(B,P0,P1,y,gap){const L=Math.hypot(P1[0]-P0[0],P1[1]-P0[1]),ux=(P1[0]-P0[0])/L,uz=(P1[1]-P0[1])/L,runs=gap?[[0,L/2-gap/2],[L/2+gap/2,L]]:[[0,L]];
+function vRail(B,P0,P1,y,gaps){const L=Math.hypot(P1[0]-P0[0],P1[1]-P0[1]),ux=(P1[0]-P0[0])/L,uz=(P1[1]-P0[1])/L;let runs=[[0,L]];
+  if(typeof gaps==='number')gaps=gaps?[[L/2,gaps]]:[];   // openings as [centre along the edge, width]
+  for(const [c,w] of gaps||[]){const g0=c-w/2,g1=c+w/2,nr=[];for(const [u0,u1] of runs){if(g1<=u0||g0>=u1){nr.push([u0,u1]);continue}if(g0>u0)nr.push([u0,g0]);if(g1<u1)nr.push([g1,u1])}runs=nr}
   for(const [a,b] of runs){if(b-a<.3)continue;const m=[P0[0]+ux*(a+b)/2,P0[1]+uz*(a+b)/2],l=b-a,X=Math.abs(ux)>.5;
     B.wood.box(m[0],y+1.5,m[1],X?l:.2,.2,X?.2:l,DARK);B.wood.box(m[0],y+.9,m[1],X?l:.13,.13,X?.13:l,DARK);
     const n=Math.max(2,Math.round(l/3)+1);for(let k=0;k<n;k++){const t=a+l*k/(n-1);B.wood.box(P0[0]+ux*t,y+.95,P0[1]+uz*t,.26,1.5,.26,DARK)}}}
@@ -1558,6 +1775,9 @@ function planVillage(V){
     else if(sh<.66){addRock(0,0,r,0,H,chance(.35));const aa=R(0,6.283),r2=r*R(.55,.8),d=(r+r2)*.6;addRock(Math.cos(aa)*d,Math.sin(aa)*d,r2,0,H*R(.3,.65),chance(.3))}   // L-shaped: a tall crag and a lower shoulder
     else addRock(0,0,r*R(.8,1),0,H,chance(.6));   // one crag, often coming to a point
     for(let k=RI(1,3);k>0;k--){const aa=R(0,6.283),d=r*R(.95,1.35);addRock(Math.cos(aa)*d,Math.sin(aa)*d,r*R(.22,.38),0,H*R(.1,.3),chance(.5))}}   // boulders round its foot
+  for(const b of V.rocks){b.rg=craggy(b.peak?.15:b.tk,b.y1-b.y0,b.peak);b.rm=new THREE.Matrix4().compose(new V3(0,b.y0,0),new THREE.Quaternion(),new V3(b.rx,1,b.rz));b.surf=rockSurf(b.rg,b.rm,V.x+b.x,V.z+b.z,b)}
+  // how far out from a rock's centre a deck facing angle a must start so that neither it nor its houses sink into the face
+  const deckIn=(b,a,y,pw)=>{let x0=rockRy(b,a,y)*.9;for(let it=0;it<2;it++){let m=0;for(const lz of[-pw/2,-pw/4,0,pw/4,pw/2])for(const yy of[y+.2,y+3,y+6.5]){const rr=b.surf(a+Math.atan2(lz,x0),Math.min(yy,b.y1-.3));m=Math.max(m,Math.sqrt(Math.max(0,rr*rr-lz*lz)))}x0=m}return x0-.45};
   const rockTop=V.rocks.reduce((m,b)=>Math.max(m,b.y1),0),flat=V.rocks.filter(b=>!b.peak&&b.rx>8).sort((a,b)=>b.y1-a.y1);
   V.hasTrunk=!crag||(flat.length>0&&chance(.5));
   let bx=0,bz=0,yb=0;V.trunkRock=null;
@@ -1577,7 +1797,7 @@ function planVillage(V){
   // decks hung on the cliff faces, and houses standing on the flat ledges
   for(const b of V.rocks){if(b.rx<7)continue;
     for(let y=b.y0+R(4,9);y<b.y1-3;y+=R(6.5,11)){const n=chance(.45)?1:2;
-      for(let k=0;k<n;k++)for(let t=0;t<10;t++){const a=R(0,6.283),pd=R(7,10),pw=R(9,13),yy=y+R(-1.5,1.5),ri=rockRy(b,a,yy)*.84,o={a,y:yy,pd,pw,rc:ri+pd/2,rIn:ri,tx:b.x,tz:b.z,gap:false,V,cliff:true,rock:b};if(!clash(o)){V.nodes.push(o);break}}}
+      for(let k=0;k<n;k++)for(let t=0;t<10;t++){const a=R(0,6.283),pd=R(7,10),pw=R(9,13),yy=y+R(-1.5,1.5),ri=deckIn(b,a,yy,pw),o={a,y:yy,pd,pw,rc:ri+pd/2,rIn:ri,tx:b.x,tz:b.z,gap:false,V,cliff:true,rock:b};if(!clash(o)){V.nodes.push(o);break}}}
     if(!b.peak&&b!==V.trunkRock)for(let k=RI(1,2);k>0;k--)for(let t=0;t<8;t++){const pd=R(7,9),pw=R(8,11),a=R(0,6.283),rr=R(0,Math.min(b.rx,b.rz)*.3),o={a,y:b.y1,pd,pw,rc:rr,rIn:0,tx:b.x,tz:b.z,gap:false,V,top:true,rock:b};
       if(rr+Math.max(pd,pw)*.55>Math.min(b.rx,b.rz)*b.tk)continue;if(!clash(o)){V.nodes.push(o);break}}}
   // decks on the branches of the skeleton
@@ -1590,7 +1810,22 @@ function planVillage(V){
           break}}
       y+=R(6.5,12)}}
   V.top=V.h+14;
+  // houses on each deck (sizes only), so bridges and stairs can be planned clear of them, onto the open strip in front
+  for(const o of V.nodes){const {pd,pw,rc}=o,x0=rc-pd/2,dmax=pd-2.4,nh=pw>11.5&&chance(.5)?2:1,hs=[];let left=pw-.6,zc=-pw/2+.3;
+    for(let k=0;k<nh;k++){const w=Math.min(R(6.2,8.6),left-(nh-k-1)*5.6);left-=w;hs.push(w)}
+    o.hp=[];for(const w of hs){const d=Math.min(R(5.6,7.6),dmax);o.hp.push({w,d,hx:x0+.25+d/2,hz:zc+w/2,st:chance(.3)?2:1,perch:chance(.3)});zc+=w+.1}
+    if(o.parent){const w=Math.min(R(5.5,7),pw/2-1.8),d=Math.min(R(5.6,7.6),dmax),e=chance(.5)?1:-1;   // the plank walk comes in at the middle of the back edge: one house, off to the side
+      o.hp=[{w,d,hx:x0+.25+d/2,hz:e*(pw/2-.3-w/2),st:chance(.3)?2:1,perch:chance(.3)}]}
+    else if(!o.top&&chance(.14)){o.kind=chance(.5)?'garden':'tea';o.hp=[];o.ob=[{hx:x0+3.6,hz:0,d:7,w:pw*.8,h:o.kind==='tea'?6:4}]}   // a garden deck or a tea deck instead of houses
+    o.xs=o.hp.length?Math.max(...o.hp.map(h=>h.hx+h.d/2)):x0+Math.min(pd-2.2,7.4);o.g={o:[],p:[],n:[]}}   // a pond or pavilion takes the back of the deck as a house would
+  for(const o of V.nodes)if(o.parent)o.parent.g.o.push([0,2.8]);   // the plank walk out to the deck beyond
 }
+// is a point inside one of a hamlet's decks (or the air just above it) or houses? skip: decks it may touch
+function vSolid(V,x,y,z,skip){for(const o of V.nodes){const A=V.yaw0+o.a,c=Math.cos(A),sn=Math.sin(A),dx=x-V.x-o.tx,dz=z-V.z-o.tz,lx=c*dx+sn*dz,lz=-sn*dx+c*dz;
+    if(!skip.includes(o)&&lx>o.rc-o.pd/2-.4&&lx<o.rc+o.pd/2+.4&&Math.abs(lz)<o.pw/2+.4&&y>o.y-1&&y<o.y+2.6)return true;
+    for(const h of o.hp)if(lx>h.hx-h.d/2-1.6&&lx<h.hx+h.d/2+1.6&&lz>h.hz-h.w/2-1.6&&lz<h.hz+h.w/2+1.6&&y>o.y-.5&&y<o.y+h.st*6.2+4.5+(h.perch?8:0))return true;
+    for(const h of o.ob||[])if(lx>h.hx-h.d/2-.6&&lx<h.hx+h.d/2+.6&&Math.abs(lz-h.hz)<h.w/2+.6&&y>o.y-.5&&y<o.y+h.h)return true}
+  return false}
 // the outer edge of a deck in world space, facing out from the trunk
 function nodeEdge(o){const V=o.V,c=Math.cos(V.yaw0+o.a),sn=Math.sin(V.yaw0+o.a),r=o.rc+o.pd/2;return{p:new V3(V.x+o.tx+c*r,o.y+.4,V.z+o.tz+sn*r),nx:c,nz:sn,o}}
 function buildVillage(V,B){
@@ -1604,7 +1839,7 @@ function buildVillage(V,B){
     o.walk=true}
   // the rock it grows from: stepped or L-shaped crags, rough and leaning, mossy on their ledges, plants spilling down
   for(const b of V.rocks){const h=b.y1-b.y0;XF={c:Math.cos(b.yaw),s:Math.sin(b.yaw),x:V.x+b.x,z:V.z+b.z};
-    const rg=craggy(b.peak?.15:b.tk,h,b.peak),rm=new THREE.Matrix4().compose(new V3(0,b.y0,0),new THREE.Quaternion(),new V3(b.rx,1,b.rz));B.rock.geom(rg,rm,pick(ROCK));
+    const rg=b.rg,rm=b.rm;B.rock.geom(rg,rm,pick(ROCK));
     addCol(0,b.y0+h/2,0,b.rx*1.45,h,b.rz*1.45);
     if(!b.peak){B.rock.at(new THREE.CylinderGeometry(1,1,1.2,9,1),0,b.y1+.15,0,b.rx*b.tk*.98,1,b.rz*b.tk*.98,MOSS,0,R(0,3));
       for(let j=RI(3,7);j>0;j--){const a=R(0,6.283),rr=rockRy(b,a+b.yaw,b.y1)*.95;wSprite(SPRS.trees,V.x+b.x+Math.cos(a+b.yaw)*rr,b.y1-.6,V.z+b.z+Math.sin(a+b.yaw)*rr,R(6,12),chance(.5)?42:pick([40,41]),.85,chance(.5)?1:-1)}
@@ -1629,6 +1864,67 @@ function buildVillage(V,B){
     if(yb>band+80){newBand(B);band=yb}}
   if(V.hasTrunk){const [cx,cz]=V.trunkAt(H+6);B.flat.at(new THREE.TorusGeometry(2.9,.35,6,14),cx,H+6,cz,1,1,1,STRAW,Math.PI/2);
    for(let k=0;k<6;k++){const a=k/6*6.283;B.cloth.quad([cx+Math.cos(a)*3.05,H+5.8,cz+Math.sin(a)*3.05],[cx+Math.cos(a+.25)*3.05,H+5.8,cz+Math.sin(a+.25)*3.05],[cx+Math.cos(a+.25)*3.05,H+4.4,cz+Math.sin(a+.25)*3.05],[cx+Math.cos(a)*3.05,H+4.4,cz+Math.sin(a)*3.05],WHITE,0,1,1,0)}}
+  // stairs between decks: from the open strip of the lower deck up through an opening in the upper deck's rail
+  const vStairs=[];
+  {const fr=o=>{const A=V.yaw0+o.a;return[Math.cos(A),Math.sin(A)]},
+     loc=(o,x,z)=>{const [c,sn]=fr(o),dx=x-V.x-o.tx,dz=z-V.z-o.tz;return[c*dx+sn*dz,-sn*dx+c*dz]},
+     wld=(o,lx,lz)=>{const [c,sn]=fr(o);return[V.x+o.tx+c*lx-sn*lz,V.z+o.tz+sn*lx+c*lz]},
+     dW=(o,lx,lz)=>{const [c,sn]=fr(o);return[c*lx-sn*lz,sn*lx+c*lz]};
+   const blocked=(x,z,y,a,b)=>{
+     for(const o of V.nodes){const [lx,lz]=loc(o,x,z),inF=lx>o.rc-o.pd/2-.2&&lx<o.rc+o.pd/2+.2&&Math.abs(lz)<o.pw/2+.2;
+       if(inF&&y>o.y-.9&&y<o.y+.6)return true;   // through a floor
+       if(inF&&o!==a&&o!==b&&y>o.y&&y<o.y+2.4)return true;   // across someone else's deck
+       for(const h of o.hp){const mg=y>o.y+h.st*6.2-1.2?2:.5;   // the eaves reach well past the walls
+         if(lx>h.hx-h.d/2-mg&&lx<h.hx+h.d/2+mg&&lz>h.hz-h.w/2-mg&&lz<h.hz+h.w/2+mg&&y>o.y-.5&&y<o.y+h.st*6.2+4.5+(h.perch?8:0))return true}
+       for(const h of o.ob||[])if(lx>h.hx-h.d/2-.6&&lx<h.hx+h.d/2+.6&&Math.abs(lz-h.hz)<h.w/2+.6&&y>o.y-.5&&y<o.y+h.h)return true}
+     if(V.hasTrunk&&y>V.trunkBase-2&&y<V.h+3){const [tx,tz]=V.trunkAt(y);if(Math.hypot(x-V.x-tx,z-V.z-tz)<3.8)return true}
+     for(const k of V.rocks)if(y>k.y0&&y<k.y1+.6){const rx=x-V.x-k.x,rz=z-V.z-k.z;const dd=Math.hypot(rx,rz),an=Math.atan2(rz,rx);if(dd<rockRy(k,an,Math.min(y,k.y1))*1.3+.5&&dd<k.surf(an,Math.min(y,k.y1-.1))+.5)return true}
+     for(const st of vStairs)for(const q of st.pts)if(Math.abs(q[1]-y)<3&&Math.hypot(q[0]-x,q[2]-z)<2.2)return true;
+     return false};
+   const free=(list,c,w)=>!list.some(([c0,w0])=>Math.abs(c-c0)<(w+w0)/2+.5);
+   const tryStair=(a,b)=>{const dy=b.y-a.y,bx1=b.rc+b.pd/2,ax0=a.rc-a.pd/2,ax1=a.rc+a.pd/2,cand=[],feet=[];
+     for(let z=-b.pw/2+1.4;z<=b.pw/2-1.4;z+=1.1)cand.push([bx1,z,-1,0,'o',z]);
+     for(let x=b.xs+1.2;x<=bx1-1.2;x+=1.1){cand.push([x,b.pw/2,0,-1,'p',x]);cand.push([x,-b.pw/2,0,1,'n',x])}
+     for(let x=a.xs+1;x<=ax1-.9;x+=.9)for(let z=-a.pw/2+1;z<=a.pw/2-1;z+=1.1)feet.push([x,z,...wld(a,x,z)]);
+     cand.sort(()=>rand()-.5);feet.sort(()=>rand()-.5);
+     for(const [lx,lz,ix,iz,ed,c] of cand){const [px,pz]=wld(b,lx,lz),[nx,nz]=dW(b,ix,iz);
+       for(const [ax,az,fx,fz] of feet){const dx=px-fx,dz=pz-fz,run=Math.hypot(dx,dz);if(run<dy*.7||run>dy*2)continue;
+         const ux=dx/run,uz=dz/run,cs=ux*nx+uz*nz;if(cs<.45)continue;const gw=1.5/cs+.7;if(!free(b.g[ed],c,gw))continue;
+         const n=Math.ceil(Math.hypot(run,dy)/.8),pts=[];let ok=true;
+         for(let i=1;i<n&&ok;i++){const t=i/n,x=lerp(fx,px,t),z=lerp(fz,pz,t),y=lerp(a.y,b.y,t)+.4;pts.push([x,y,z]);
+           for(const hh of[.35,1.3,2.3])if(blocked(x,z,y+hh,a,b)){ok=false;break}}
+         if(!ok)continue;
+         // where the flight leaves the lower deck: low enough to need an opening in that rail?
+         const [eux,euz]=(()=>{const [c,sn]=fr(a);return[c*ux+sn*uz,-sn*ux+c*uz]})();let se=1e9,eg=null;
+         if(eux>1e-3){const t=(ax1-ax)/eux;if(t<se){se=t;eg=['o',az+euz*t]}}
+         if(euz>1e-3){const t=(a.pw/2-az)/euz;if(t<se){se=t;eg=['p',ax+eux*t]}}
+         if(euz<-1e-3){const t=(-a.pw/2-az)/euz;if(t<se){se=t;eg=['n',ax+eux*t]}}
+         if(eux<-1e-3){const t=(ax0-ax)/eux;if(t<se){se=t;eg=null}}
+         let ag=null;if(eg&&se/run*dy<2.3){const w=1.5/Math.max(.35,Math.abs(eg[0]==='o'?eux:euz))+.7;if(!free(a.g[eg[0]],eg[1],w))continue;ag=[eg[0],eg[1],w]}
+         return{F:new V3(fx,a.y+.4,fz),P:new V3(px,b.y+.4,pz),bg:[ed,c,gw],ag,pts}}}
+     return null};
+   // a dog-leg: the first flight climbs over the lower deck's strip to a landing on a post, the second turns and goes up to the upper deck
+   const pathOK=(fx,fy,fz,px,py,pz,a,b,pts)=>{const n=Math.ceil(Math.hypot(px-fx,py-fy,pz-fz)/.8);for(let i=1;i<n;i++){const t=i/n,x=lerp(fx,px,t),z=lerp(fz,pz,t),y=lerp(fy,py,t);pts.push([x,y,z]);for(const hh of[.35,1.3,2.3])if(blocked(x,z,y+hh,a,b))return false}return true};
+   const tryStair2=(a,b)=>{const dy=b.y-a.y;if(dy<5.5)return null;const yA=a.y+.4,yB=b.y+.4,yL=yA+dy*.5,ax1=a.rc+a.pd/2,bx1=b.rc+b.pd/2,cand=[],spots=[];
+     for(let z=-b.pw/2+1.4;z<=b.pw/2-1.4;z+=1.1)cand.push([bx1,z,-1,0,'o',z]);
+     for(let x=b.xs+1.2;x<=bx1-1.2;x+=1.1){cand.push([x,b.pw/2,0,-1,'p',x]);cand.push([x,-b.pw/2,0,1,'n',x])}
+     for(let x=a.xs+1;x<=ax1-.9;x+=.9)for(let z=-a.pw/2+1;z<=a.pw/2-1;z+=1.1)spots.push(wld(a,x,z));
+     cand.sort(()=>rand()-.5);spots.sort(()=>rand()-.5);
+     for(const [Lx,Lz] of spots.slice(0,28)){if(blocked(Lx,Lz,yL+1.3,a,b))continue;
+       for(const [clx,clz,ix,iz,ed,c] of cand){const [px,pz]=wld(b,clx,clz),[nx,nz]=dW(b,ix,iz),dx=px-Lx,dz=pz-Lz,run=Math.hypot(dx,dz),h2=yB-yL;if(run<h2*.7||run>h2*2)continue;
+         const ux=dx/run,uz=dz/run,cs=ux*nx+uz*nz;if(cs<.45)continue;const gw=1.5/cs+.7;if(!free(b.g[ed],c,gw))continue;
+         const p2=[];if(!pathOK(Lx,yL,Lz,px,yB,pz,a,b,p2))continue;
+         for(const [fx,fz] of spots){const ex=Lx-fx,ez=Lz-fz,r1=Math.hypot(ex,ez),h1=yL-yA;if(r1<h1*.7||r1>h1*2||Math.abs((ex*ux+ez*uz)/r1)>.5)continue;   // turn about a right angle
+           const p1=[];if(!pathOK(fx,yA,fz,Lx,yL,Lz,a,b,p1))continue;
+           return{F:new V3(fx,yA,fz),L:new V3(Lx,yL,Lz),P:new V3(px,yB,pz),bg:[ed,c,gw],ag:null,pts:p1.concat(p2,[[Lx,yL,Lz]])}}}}
+     return null};
+   const ns0=V.nodes.slice().sort((a,b)=>a.y-b.y);
+   for(let i=0;i<ns0.length;i++){const a=ns0[i];let nd=0;
+     for(let j=i+1;j<ns0.length&&nd<2;j++){const b=ns0[j],dy=b.y-a.y;if(dy<3.5||dy>16||b.arr)continue;
+       const [ax,az]=wld(a,a.rc,0),[bx,bz]=wld(b,b.rc,0);if(Math.hypot(ax-bx,az-bz)>34)continue;
+       const st=tryStair(a,b)||tryStair2(a,b);if(!st)continue;vStairs.push(st);b.arr=true;nd++;a.busy=b.busy=true;
+       b.g[st.bg[0]].push([st.bg[1],st.bg[2]]);if(st.ag)a.g[st.ag[0]].push([st.ag[1],st.ag[2]])}}
+   (window.__vstl=window.__vstl||[]).push(...vStairs.map(q=>[q.F.x,q.F.y,q.F.z,q.P.x,q.P.y,q.P.z].concat(q.L?[q.L.x,q.L.y,q.L.z]:[])))}
   // decks on branches, houses on decks
   const doors=[];
   for(const o of V.nodes){const A=V.yaw0+o.a,y=o.y,{pd,pw,rc}=o;
@@ -1637,30 +1933,45 @@ function buildVillage(V,B){
     const x0=rc-pd/2,x1=rc+pd/2;
     B.wood.box(rc,y+.2,0,pd,.4,pw,PLANK);addCol(rc,y+.2,0,pd,.4,pw);
     for(const e of[-.32,.32])B.wood.box(rc,y-.22,e*pw,pd+.6,.45,.45,DARK);
-    vRail(B,[x1,-pw/2],[x1,pw/2],y+.4,o.gap?3.4:0);vRail(B,[x0,pw/2],[x1,pw/2],y+.4,0);vRail(B,[x0,-pw/2],[x1,-pw/2],y+.4,0);
-    if(x0>2.6&&!o.parent&&!o.rock){const g=x0-2.2;B.wood.box(2.2+g/2,y+.2,0,g+.2,.4,2.6,PLANK)}
+    vRail(B,[x1,-pw/2],[x1,pw/2],y+.4,o.g.o.map(([c,w])=>[c+pw/2,w]));vRail(B,[x0,pw/2],[x1,pw/2],y+.4,o.g.p.map(([c,w])=>[c-x0,w]));vRail(B,[x0,-pw/2],[x1,-pw/2],y+.4,o.g.n.map(([c,w])=>[c-x0,w]));
+    if(x0>2.6&&!o.parent&&!o.rock){const g=x0-2.2;for(const e of[-.32,.32])B.wood.box(2.2+g/2,y-.05,e*pw,g+.4,.5,.45,DARK)}   // the deck's joists carried on into the trunk (a beam, not a walkway into the house wall)
     // the branch: a raking beam from the trunk out under the deck, and a lighter strut beside it
-    if(!o.top)for(const [zz,th,dy] of[[0,.95,R(6,10)],[R(-.35,.35)*pw,.6,R(4,7)]]){const a=new V3((o.rIn||0)*.8,y-dy,o.rock?zz:0),b=new V3(rc+pd*.2,y-.3,zz),dv=b.clone().sub(a),L=dv.length();
+    if(!o.top)for(let [zz,th,dy] of[[0,.95,R(6,10)],[R(-.35,.35)*pw,.6,R(4,7)]]){if(o.rock)dy=Math.min(dy,y-o.rock.y0-1);if(dy<1.5)continue;const a=new V3((o.rIn||0)*.8,y-dy,o.rock?zz:0),b=new V3(rc+pd*.2,y-.3,zz),dv=b.clone().sub(a),L=dv.length();
       B.wood.box((a.x+b.x)/2,(a.y+b.y)/2,(a.z+b.z)/2,th,L,th,DARK,new THREE.Quaternion().setFromUnitVectors(UP,dv.normalize()))}
     if(!o.top&&chance(.45))for(let k=RI(2,5);k>0;k--){const Lh=R(1.5,5.5);panel(D.cloth,rc,0,0,pd/2+.12,R(-.45,.45)*pw,R(.7,1.5),y+.1-Lh,Lh,pick(GREENS),0,1,1,0)}   // ivy hanging off the deck
     // one to three houses along the back of the deck, doors facing out onto the strip of deck by the rail
-    const nh=pw>11.5&&chance(.5)?2:1,hs=[];let left=pw-.6;
-    for(let k=0;k<nh;k++){const w=Math.min(R(6.2,8.6),left-(nh-k-1)*5.6);left-=w;hs.push(w)}
-    let zc=-pw/2+.3;const dmax=pd-2.4,shopP=(1-V.zr)*.5+.06;let hy=y+.4;
-    for(const w of hs){const d=Math.min(R(5.6,7.6),dmax),hx=x0+.25+d/2,hz=zc+w/2;zc+=w+.1;
-      const st=chance(.3)?2:1,top=vHouse(B,V,hx,hy,hz,d,w,st,0,fam,chance(shopP),doors.length<3&&y>24&&chance(.5)?doors:null);
-      if(chance(.3)){   // a later addition perched on top, offset, with its own roof
+    const shopP=(1-V.zr)*.5+.06,hy=y+.4;
+    if(o.kind==='garden'){const gx=x0+Math.min(4.2,pd*.35),gz=R(-.2,.2)*pw;   // a pond edged with stones, a tree, a stone lantern
+      D.flat.quad([gx-2,hy+.06,gz-2.4],[gx+2,hy+.06,gz-2.4],[gx+2,hy+.06,gz+2.4],[gx-2,hy+.06,gz+2.4],WATER);
+      for(let k=0;k<14;k++){const t=k/14*6.283;D.wood.box(gx+Math.cos(t)*2.2,hy+.15,gz+Math.sin(t)*2.6,R(.5,.8),R(.25,.45),R(.5,.8),STONE)}
+      blobTree(D,x0+1.2,hy,gz+(gz>0?-1:1)*R(2.5,3.5),R(1.8,2.4),pick([PINKS,GREENS,AUTUMN]));blobTree(D,x0+1,hy,-gz*.5+R(-1,1),R(1.2,1.6),GREENS);
+      {const lx=gx+2.6,lz=gz+(gz>0?-3:3);D.wood.box(lx,hy+.4,lz,.9,.8,.9,STONE);D.wood.box(lx,hy+1.2,lz,.4,.9,.4,STONE);lantern(D,lx,hy+2,lz,.7,LCREAM,2);D.wood.box(lx,hy+2.6,lz,1.2,.3,1.2,STONE)}}
+    if(o.kind==='tea'){const tx=x0+Math.min(3.6,pd*.32),hz=Math.min(3,pw*.25);   // an open pavilion with benches, a red parasol by the rail
+      for(const a of[-1,1])for(const b of[-1,1])B.wood.box(tx+a*2.4,hy+2.3,b*hz,.32,4.6,.32,DARK);
+      roof(B.roof,tx,hy+4.5,0,.6,Math.max(.3,hz*2-4.2),7.6,hz*2+3,2,pick(fam.roof),1,3);
+      for(const b of[-1,1]){B.wood.box(tx,hy+.5,b*(hz-.6),4,.14,.8,PLANK);for(let i=RI(0,2);i>0;i--)person(D,tx+R(-1.5,1.5),hy+.25,b*(hz-.6))}
+      B.wood.box(tx,hy+.55,0,1.4,.12,1.4,PLANK);lantern(D,tx,hy+3.6,0,.8,LRED,0);{const zu=R(-.3,.3)*pw;if(!o.g.o.some(([c,w])=>Math.abs(zu-c)<w/2+1.4))umbrella(D,x1-1.6,hy,zu)}}
+    for(const H of o.hp){const {w,d,hx,hz,st}=H;
+      const top=vHouse(B,V,hx,hy,hz,d,w,st,0,fam,chance(shopP),doors.length<3&&y>24&&chance(.5)?doors:null);
+      if(H.perch){   // a later addition perched on top, offset, with its own roof
         const w2=w*R(.55,.8),d2=d*R(.6,.85),ox=R(-.35,.35)*d,oz=(chance(.5)?1:-1)*R(.2,.45)*w,by=top+R(.4,1.6);
         for(const a of[-1,1])for(const b of[-1,1])B.wood.box(hx+ox+a*(d2/2-.2),(by+top-3)/2,hz+oz+b*(w2/2-.2),.4,by-top+3,.4,DARK);
         B.wood.box(hx+ox,by-.15,hz+oz,d2+.8,.3,w2+.8,PLANK);vHouse(B,V,hx+ox,by,hz+oz,d2,w2,1,RI(0,3),fam,false,null)}}
     if(y>10){const sp=xfP(x1-1.4,R(-.25,.25)*pw);jobSpots.push({pos:new V3(sp[0],y+3,sp[1]),T:V,floor:Math.round(y/7)+1,zone:2})}
     // the strip by the rail: things of daily life, a laundry line, brooms, a tree now and then
-    furnish(D,x1-2,-pw/2+.6,x1-.5,pw/2-.6,y+.4,RI(1,3),false);
-    if(chance(.35)){for(const e of[-1,1])D.wood.box(x1-.35,y+2.4,e*(pw/2-.4),.14,4,.14,DARK);D.wood.box(x1-.35,y+4.3,0,.06,.06,pw-.8,DARK);
+    // keep the landings clear: nothing set down in front of an opening in the outer rail
+    const og=o.g.o.map(([c,w])=>[c-w/2-.7,c+w/2+.7]),zOK=z=>!og.some(([a,b])=>z>a&&z<b),rz=k=>{for(let t=0;t<8;t++){const z=R(-k,k)*pw;if(zOK(z))return z}return null};
+    {let segs=[[-pw/2+.6,pw/2-.6]];for(const [a,b] of og){const nx2=[];for(const [u0,u1] of segs){if(b<=u0||a>=u1){nx2.push([u0,u1]);continue}if(a>u0)nx2.push([u0,a]);if(b<u1)nx2.push([b,u1])}segs=nx2}
+     const nT=o.busy?RI(0,1):RI(1,3);for(const [u0,u1] of segs)if(u1-u0>1.2)furnish(D,x1-2,u0,x1-.5,u1,y+.4,Math.round(nT*(u1-u0)/(pw-1.2)+rand()*.5),false)}
+    if(!o.busy&&!o.g.o.length&&chance(.35)){for(const e of[-1,1])D.wood.box(x1-.35,y+2.4,e*(pw/2-.4),.14,4,.14,DARK);D.wood.box(x1-.35,y+4.3,0,.06,.06,pw-.8,DARK);
       for(let a=-pw/2+1;a<pw/2-1;a+=R(1.2,1.9))panel(D.cloth,x1-.35,0,0,0,a,R(.8,1.2),y+2.6,1.6,pick([WHITE,WHITE,INDIGO,C('#c9d6e6'),C('#e3b5a8'),C('#cfe0c4')]),0,1,1,0)}
-    if(chance(.3))for(let k=RI(2,3);k>0;k--){const zz=R(-.4,.4)*pw;D.flat.box(x1-1,y+1.25,zz,.45,.9,.45,STRAW);D.wood.box(x1-.75,y+2.6,zz,.1,2.3,.1,STICK,new THREE.Quaternion().setFromUnitVectors(UP,new V3(.28,1,0).normalize()))}   // brooms parked by the rail
-    if(chance(.16))blobTree(D,x1-1.6,y+.4,R(-.3,.3)*pw,R(1.4,2),pick([PINKS,GREENS,GREENS,AUTUMN]));
-    if(chance(.5))person(D,x1-1.2,y+.4,R(-.4,.4)*pw);
+    if(chance(.3))for(let k=RI(2,3);k>0;k--){const zz=rz(.4);if(zz===null)continue;D.flat.box(x1-1,y+1.25,zz,.45,.9,.45,STRAW);D.wood.box(x1-.75,y+2.6,zz,.1,2.3,.1,STICK,new THREE.Quaternion().setFromUnitVectors(UP,new V3(.28,1,0).normalize()))}   // brooms parked by the rail
+    if(!o.busy&&!o.top&&chance(.12)&&zOK((chance(.5)?1:-1)*.22*pw)){const zt=(chance(.5)?1:-1)*R(.15,.3)*pw,xt=x1-1.5;
+      for(const e of[-1,1]){D.wood.box(xt,y+1.75,zt+e*1.05,.26,2.7,.26,RED);D.wood.box(xt,y+.5,zt+e*1.05,.42,.2,.42,STONE)}
+      D.wood.box(xt,y+3.2,zt,.32,.26,3.2,RED);D.wood.box(xt,y+3.42,zt,.36,.18,3.5,DARK);D.wood.box(xt,y+2.55,zt,.18,.18,2.6,RED);
+      D.wood.box(xt-1.6,y+.9,zt,.9,1,.9,STONE);D.wood.box(xt-1.6,y+1.75,zt,.75,.7,.75,PLANK);D.roof.quad([xt-2.15,y+2.1,zt-.6],[xt-2.15,y+2.1,zt+.6],[xt-1.6,y+2.5,zt+.6],[xt-1.6,y+2.5,zt-.6],pick(fam.roof));D.roof.quad([xt-1.05,y+2.1,zt+.6],[xt-1.05,y+2.1,zt-.6],[xt-1.6,y+2.5,zt-.6],[xt-1.6,y+2.5,zt+.6],pick(fam.roof))}
+    else if(chance(.16)){const zb=rz(.3);if(zb!==null)blobTree(D,x1-1.6,y+.4,zb,R(1.4,2),pick([PINKS,GREENS,GREENS,AUTUMN]))}
+    if(chance(.5)){const zp=rz(.4);if(zp!==null)person(D,x1-1.2,y+.4,zp)}
     if(chance((1-V.zr)*.55))lanternRow(D,x1-.2,y+4.4,-pw/2+.3,x1-.2,y+4.4,pw/2-.3,2.6,.4,RI(0,1));
     if(V.zr<.65&&chance(.25))banner(D,rc,0,0,pd/2+.15,R(-.3,.3)*pw,2,y-7.5,7.4,RI(0,GENERAL.length-1));
   }
@@ -1671,15 +1982,15 @@ function buildVillage(V,B){
    if(chance(.6)){wSprite(SPRS.trees,V.x+cx,y+.4,V.z+cz,R(24,40),treeCell(chance(.35)?PINKS:GREENS),0,chance(.5)?1:-1);for(let k=0;k<3;k++)wSprite(SPRS.trees,V.x+cx+R(-4,4),y+R(10,20),V.z+cz+R(-4,4),R(14,22),40+RI(0,2),.5,chance(.5)?1:-1)}
    else{B.wood.box(0,y+3,0,4.6,5,4.6,pick(WOODS));irimoya(B,0,y+5.2,0,4.6,4.6,4.2,pick(fam.roof));const u=facUV(40);panel(B.fac,0,0,0,2.36,0,3.6,y+.6,2.4,LITC,u[0],u[1],u[2],u[3]);lantern(D,3,y+3,2.4,.8,LCREAM,2);lantern(D,3,y+3,-2.4,.8,LCREAM,2)}
    furnish(D,-4,-4,4,4,y+.4,RI(2,4),false)}
-  // ladders between decks that sit close above one another
   XF=null;const ns=V.nodes.slice().sort((a,b)=>a.y-b.y);
-  for(let i=0;i<ns.length;i++)for(let j=i+1;j<Math.min(ns.length,i+4);j++){const a=ns[i],b=ns[j],dy=b.y-a.y;if(dy<4||dy>17)continue;
-    const pa=deckPt(a,b),pb=deckPt(b,a),h=Math.hypot(pb.x-pa.x,pb.z-pa.z);if(h>12)continue;
-    stairRun(B,pa,pb);break}
+  for(const st of vStairs){if(!st.L){stairRun(B,st.F,st.P);continue}
+    const L=st.L;stairRun(B,st.F,L);stairRun(B,L,st.P);B.wood.box(L.x,L.y-.17,L.z,2.4,.34,2.4,PLANK);B.wood.box(L.x,(st.F.y+L.y)/2-.2,L.z,.36,L.y-st.F.y-.3,.36,DARK);   // the landing on its post
+    for(const [ex,ez] of[[-1,-1],[1,-1],[-1,1],[1,1]])B.wood.box(L.x+ex*1.1,L.y+.55,L.z+ez*1.1,.13,1.1,.13,DARK)}
   // laundry lines strung across the gap between neighbouring decks, sagging under the washing
   {let nl=0;for(let i=0;i<ns.length&&nl<5;i++)for(let j=i+1;j<ns.length&&nl<5;j++){const a=ns[i],b=ns[j];if(Math.abs(b.y-a.y)>7||!chance(.7))continue;
     const pa=deckPt(a,b),pb=deckPt(b,a),h=Math.hypot(pb.x-pa.x,pb.z-pa.z);if(h<5||h>26)continue;
     {let ok=true;const st=Math.ceil(h/1.5);for(let k=2;k<st-1&&ok;k++){const t=k/st,yy=lerp(a.y,b.y,t)+4.6-Math.sin(t*Math.PI)*h*.08;if(hitTest(lerp(pa.x,pb.x,t),yy-.6,lerp(pa.z,pb.z,t),.9)||hitTest(lerp(pa.x,pb.x,t),yy-2.4,lerp(pa.z,pb.z,t),.9))ok=false;
+       {const lx=lerp(pa.x,pb.x,t),lz=lerp(pa.z,pb.z,t);for(const st of vStairs)for(const q of st.pts)if(Math.abs(q[1]+1-yy)<3.2&&Math.hypot(q[0]-lx,q[2]-lz)<1.6)ok=false}   // not across a stair
        for(const r of V.rocks){const rx=lerp(pa.x,pb.x,t)-V.x-r.x,rz=lerp(pa.z,pb.z,t)-V.z-r.z;if(yy>r.y0&&yy-2.4<r.y1&&Math.hypot(rx,rz)<rockRy(r,Math.atan2(rz,rx),Math.min(yy,r.y1))*1.3+1)ok=false}}
      if(!ok)continue}
     nl++;(window.__laundry=window.__laundry||[]).push([pa.x,a.y,pa.z,pb.x,b.y,pb.z]);
@@ -1692,13 +2003,15 @@ function buildVillage(V,B){
 }
 // the point on deck o nearest to deck t (pulled in from the edges), world space
 function deckPt(o,t){const V=o.V,A=V.yaw0+o.a,c=Math.cos(A),sn=Math.sin(A),Ta=V.yaw0+t.a,tc=Math.cos(Ta)*(t.rc)+t.tx,ts=Math.sin(Ta)*(t.rc)+t.tz;
-  const lx=c*(tc-o.tx)+sn*(ts-o.tz),lz=-sn*(tc-o.tx)+c*(ts-o.tz),x=clamp(lx,o.rc-o.pd/2+.9,o.rc+o.pd/2-.9),z=clamp(lz,-o.pw/2+.9,o.pw/2-.9);
+  const lx=c*(tc-o.tx)+sn*(ts-o.tz),lz=-sn*(tc-o.tx)+c*(ts-o.tz),x=clamp(lx,Math.min(o.rc+o.pd/2-.9,(o.xs||o.rc-o.pd/2)+.9),o.rc+o.pd/2-.9),z=clamp(lz,-o.pw/2+.9,o.pw/2-.9);
   return new V3(V.x+o.tx+c*x-sn*z,o.y+.4,V.z+o.tz+sn*x+c*z)}
 // a steep timber stair (or a ladder when it is nearly vertical) from a up to b
 function stairRun(B,a,b){const dv=b.clone().sub(a),L=dv.length(),hz=Math.hypot(dv.x,dv.z),q=alongQ(dv.clone().normalize()),m=a.clone().add(b).multiplyScalar(.5),sv=hz>.5?new V3(-dv.z/hz,0,dv.x/hz):new V3(1,0,0);
   if(hz<2.5){for(const e of[-.45,.45])B.wood.box(a.x+sv.x*e,(a.y+b.y)/2+.6,a.z+sv.z*e,.14,b.y-a.y+1.4,.14,DARK);for(let y=a.y+.6;y<b.y+.4;y+=.75)B.wood.box(a.x,y,a.z,Math.abs(sv.x)>.5?1:.1,.1,Math.abs(sv.x)>.5?.1:1,DARK);return}
-  for(const e of[-.7,.7]){B.wood.box(m.x+sv.x*e,m.y-.1,m.z+sv.z*e,.16,.4,L,DARK,q);B.wood.box(m.x+sv.x*e,m.y+1.2,m.z+sv.z*e,.1,.1,L,DARK,q)}
-  const n=Math.max(4,Math.round((b.y-a.y)/.6));for(let i=1;i<n;i++){const p=a.clone().lerp(b,i/n);B.wood.box(p.x,p.y,p.z,Math.abs(sv.x)>.5?1.4:.35,.12,Math.abs(sv.x)>.5?.35:1.4,PLANK)}}
+  const qy=new THREE.Quaternion().setFromUnitVectors(new V3(1,0,0),sv);
+  for(const e of[-.78,.78]){B.wood.box(m.x+sv.x*e,m.y-.12,m.z+sv.z*e,.16,.42,L,DARK,q);B.wood.box(m.x+sv.x*e,m.y+1.15,m.z+sv.z*e,.11,.11,L,DARK,q);
+    const np=Math.max(2,Math.round(L/2.4));for(let k=0;k<=np;k++){const p=a.clone().lerp(b,k/np);B.wood.box(p.x+sv.x*e,p.y+.55,p.z+sv.z*e,.13,1.2,.13,DARK)}}
+  const n=Math.max(4,Math.round((b.y-a.y)/.55));for(let i=1;i<n;i++){const p=a.clone().lerp(b,i/n);B.wood.box(p.x,p.y-.02,p.z,1.5,.12,.4,PLANK,qy)}}
 // a sagging plank-and-rope bridge between two hamlets
 function ropeBridge(B,a,b){const d=b.clone().sub(a),hz=Math.hypot(d.x,d.z),sv=new V3(-d.z/hz,0,d.x/hz),n=Math.max(6,Math.round(hz/2.2)),sag=Math.min(9,hz*.07);
   const at=t=>new V3(a.x+d.x*t,a.y+d.y*t-Math.sin(t*Math.PI)*sag,a.z+d.z*t);
@@ -1722,12 +2035,16 @@ function ropeBridge(B,a,b){const d=b.clone().sub(a),hz=Math.hypot(d.x,d.z),sv=ne
  {const pairs=[];
   for(let i=0;i<villages.length;i++)for(let j=i+1;j<villages.length;j++){const A=villages[i],Bv=villages[j];if(Math.hypot(A.x-Bv.x,A.z-Bv.z)>200)continue;
     for(const o of A.nodes)for(const q of Bv.nodes){if(Math.abs(o.y-q.y)>9)continue;const ea=nodeEdge(o),eb=nodeEdge(q),dx=eb.p.x-ea.p.x,dz=eb.p.z-ea.p.z,dh=Math.hypot(dx,dz);
-      if(dh<14||dh>170)continue;const fa=(dx*ea.nx+dz*ea.nz)/dh,fb=(-dx*eb.nx-dz*eb.nz)/dh;if(fa<.5||fb<.5)continue;pairs.push([dh*(2.2-fa-fb),ea,eb])}}
+      if(dh<14||dh>170)continue;const fa=(dx*ea.nx+dz*ea.nz)/dh,fb=(-dx*eb.nx-dz*eb.nz)/dh;if(fa<.5||fb<.5)continue;pairs.push([dh*(2.2-fa-fb),ea,eb,fa,fb])}}
   pairs.sort((a,b)=>a[0]-b[0]);V_BR=[];
-  for(const [,ea,eb] of pairs){if(V_BR.length>=140)break;if(ea.o.gap||eb.o.gap)continue;
+  for(const [,ea,eb,fa,fb] of pairs){if(V_BR.length>=140)break;if(ea.o.gap||eb.o.gap)continue;
     if(V_BR.filter(([p,q])=>p.o.V===ea.o.V&&q.o.V===eb.o.V||p.o.V===eb.o.V&&q.o.V===ea.o.V).some(([p])=>Math.abs(p.p.y-ea.p.y)<25))continue;   // several between two hamlets, at different heights
-    {const steps=Math.ceil(ea.p.distanceTo(eb.p)/4);let hit=false;for(const V of [ea.o.V,eb.o.V])for(const b of V.rocks)for(let k=1;k<steps&&!hit;k++){const t=k/steps,x=lerp(ea.p.x,eb.p.x,t)-V.x-b.x,z=lerp(ea.p.z,eb.p.z,t)-V.z-b.z,y=lerp(ea.p.y,eb.p.y,t);if(y<b.y1&&y>b.y0&&Math.hypot(x,z)<rockRy(b,Math.atan2(z,x),y)+1)hit=true}if(hit)continue}
-    ea.o.gap=eb.o.gap=true;V_BR.push([ea,eb])}}
+    {const steps=Math.ceil(ea.p.distanceTo(eb.p)/4);let hit=false;for(const V of [ea.o.V,eb.o.V])for(const b of V.rocks)for(let k=1;k<steps&&!hit;k++){const t=k/steps,x=lerp(ea.p.x,eb.p.x,t)-V.x-b.x,z=lerp(ea.p.z,eb.p.z,t)-V.z-b.z,y=lerp(ea.p.y,eb.p.y,t);if(y<b.y1&&y>b.y0&&Math.hypot(x,z)<rockRy(b,Math.atan2(z,x),y)+1)hit=true}
+     const dh=Math.hypot(eb.p.x-ea.p.x,eb.p.z-ea.p.z),sag=Math.min(9,dh*.07);
+     for(let k=1;k<steps&&!hit;k++){const t=k/steps,x=lerp(ea.p.x,eb.p.x,t),z=lerp(ea.p.z,eb.p.z,t),y=lerp(ea.p.y,eb.p.y,t)-Math.sin(t*Math.PI)*sag;
+       for(const V of [ea.o.V,eb.o.V])for(const hh of[.2,1.6])if(vSolid(V,x,y+hh,z,[ea.o,eb.o]))hit=true}
+     if(hit)continue}
+    ea.o.gap=eb.o.gap=true;ea.o.g.o.push([0,Math.min(ea.o.pw-1.2,2.9/fa+.5)]);eb.o.g.o.push([0,Math.min(eb.o.pw-1.2,2.9/fb+.5)]);V_BR.push([ea,eb])}}   // the opening widens when the bridge comes in at a slant
  for(const V of villages){const B=bufs2();buildVillage(V,B);addBufs(B);addDetail(B)}
  for(const T of trans){const B=bufs2();genTower(T,B);addBufs(B);addDetail(B)}
  for(const [ea,eb] of V_BR)ropeBridge(S,ea.p,eb.p);
@@ -2350,7 +2667,8 @@ function frame(now){
     camera.position.lerp(tmp,window.__camSnap?1:1-Math.exp(-7*dt));
     look.copy(P.pos).addScaledVector(fwd,12);look.y+=1.4;camera.lookAt(look);
   }
-  if(window.__orbit!=null){const a=P.yaw+window.__orbit,r=window.__orbitR||7;camera.position.set(P.pos.x+Math.sin(a)*r,P.pos.y+1.5,P.pos.z+Math.cos(a)*r);camera.lookAt(P.pos.x,P.pos.y+1.2,P.pos.z)}   // debug: look at the rider from any side
+  if(window.__camFix){const f=window.__camFix;camera.position.set(f[0],f[1],f[2]);camera.lookAt(f[3],f[4],f[5])}   // debug: a fixed camera
+  else if(window.__orbit!=null){const a=P.yaw+window.__orbit,r=window.__orbitR||7;camera.position.set(P.pos.x+Math.sin(a)*r,P.pos.y+1.5,P.pos.z+Math.cos(a)*r);camera.lookAt(P.pos.x,P.pos.y+1.2,P.pos.z)}   // debug: look at the rider from any side
   updatePlayerCard();
   const fov=(photo&&photoFov?photoFov:ST.fov)+Math.max(0,P.speed)*.2;if(Math.abs(camera.fov-fov)>.05){camera.fov=damp(camera.fov,fov,3,dt);camera.updateProjectionMatrix()}
   // npcs
@@ -2405,7 +2723,7 @@ function bench(q,n=6){const gl=renderer.getContext(),px=new Uint8Array(4),sh=sun
     renderFrame(q);
     gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,px);if(i>1)best=Math.min(best,performance.now()-t0)}
   sun.castShadow=sh;return +best.toFixed(1)}
-window.__dbg={bench,P,towers,links,mids,villages,trans,terraces,allDoors,cats,renderer,detailMeshes,flyMesh,cloudMesh,applyTime,get job(){return job},set dayT(v){dayT=v}};
+window.__dbg={bench,hitTest,P,towers,links,mids,villages,trans,terraces,allDoors,cats,renderer,detailMeshes,flyMesh,cloudMesh,applyTime,get job(){return job},set dayT(v){dayT=v}};
 </script>
 </body>
 </html>
