@@ -64,7 +64,7 @@
   <div id="near"></div>
   <div id="toast" class="plaque"></div>
   <div id="arrow"><i>◆</i><span></span></div>
-  <div id="help">滑鼠／方向鍵 轉向　W 前進　Shift 衝刺　S 後退　放開即懸停<br>空白鍵 上升　Q 下降　T 快轉時辰　M 靜音　R 回萬事屋　P 畫質　Tab 設定　H 拍照模式</div>
+  <div id="help">滑鼠／方向鍵 轉向　W 前進　空白鍵 衝刺　S 後退　Shift+A/D 平移　放開即懸停<br>E 上升　Q 下降　T 快轉時辰　M 靜音　R 回萬事屋　P 畫質　Tab 設定　H 拍照模式</div>
   <button id="menuBtn" class="plaque" title="設定 (Tab)">☰</button>
 </div>
 <div id="panel"></div>
@@ -74,7 +74,7 @@
     <h1>天街</h1>
     <h2>萬事屋・空中宅配</h2>
     <p>街道不在地面，天空才是街道。<br>你是〈萬事屋〉新來的掃帚快遞——飛到發光的光柱取貨，再送到客人家門口。<br>不想工作也沒關係，這座城市夠你飛上一整天。<br>
-    <kbd>滑鼠</kbd>或<kbd>方向鍵</kbd>轉向　<kbd>W</kbd>前進　<kbd>Shift</kbd>衝刺　<kbd>S</kbd>後退　放開就停在空中　<kbd>空白</kbd>上升　<kbd>Q</kbd>下降<br>
+    <kbd>滑鼠</kbd>或<kbd>方向鍵</kbd>轉向　<kbd>W</kbd>前進　<kbd>空白</kbd>衝刺　<kbd>S</kbd>後退　<kbd>Shift</kbd>+<kbd>A</kbd>/<kbd>D</kbd>平移　放開就停在空中　<kbd>E</kbd>上升　<kbd>Q</kbd>下降<br>
     <span style="opacity:.8">聽說有九隻貓睡在各家陽台上，而遠方神木的樹幹上有座鳥居……</span></p>
     <button id="go" disabled>築城中…</button>
   </div>
@@ -86,7 +86,7 @@ const V3=THREE.Vector3, $=id=>document.getElementById(id);
 
 /* ---------- utils ---------- */
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
-const rand=mulberry32(20261116);
+let rand=mulberry32(20261116);
 const R=(a,b)=>a+(b-a)*rand(), RI=(a,b)=>Math.floor(R(a,b+1)), pick=a=>a[Math.floor(rand()*a.length)], chance=p=>rand()<p;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x)), lerp=(a,b,t)=>a+(b-a)*t, damp=(a,b,k,dt)=>lerp(a,b,1-Math.exp(-k*dt));
 const C=h=>new THREE.Color(h);
@@ -124,6 +124,7 @@ class Buf{
   }
   // a box whose texture runs along its longest side (wood grain along a post or rail)
   beamBox(cx,cy,cz,sx,sy,sz,col,q){
+    {const k=1+(Math.random()-.5)*.13,w=(Math.random()-.5)*.07;col=_jc.setRGB(col.r*k*(1+w),col.g*k,col.b*k*(1-w*1.6))}
     const h=[sx/2,sy/2,sz/2],dm=[sx,sy,sz],L=dm.indexOf(Math.max(sx,sy,sz));
     const P=v=>{if(q){_v.set(v[0],v[1],v[2]).applyQuaternion(q);return[_v.x+cx,_v.y+cy,_v.z+cz]}return[v[0]+cx,v[1]+cy,v[2]+cz]};
     for(let ax=0;ax<3;ax++)for(const sg of[1,-1]){
@@ -160,7 +161,7 @@ class Buf{
     return new THREE.Mesh(g,mat);
   }
 }
-const NRM=[[1,0],[-1,0],[0,1],[0,-1]];
+const NRM=[[1,0],[-1,0],[0,1],[0,-1]];const _jc=new THREE.Color();
 // point a box's long (z) axis along d with its up axis kept as close to world-up as possible: bridges pitch along their length but never roll
 const _m4=new THREE.Matrix4(),_o3=new V3(),_t3=new V3();
 const alongQ=d=>new THREE.Quaternion().setFromRotationMatrix(_m4.lookAt(_o3,_t3.copy(d).negate(),new V3(0,1,0)));
@@ -211,6 +212,19 @@ const beamTex=canvasTex(128,256,(g,w,h)=>{g.fillStyle='#fff';g.fillRect(0,0,w,h)
 const plankTex=canvasTex(256,256,(g,w,h)=>{g.fillStyle='#fff';g.fillRect(0,0,w,h);
   for(let i=0;i<200;i++){g.strokeStyle=`rgba(70,35,15,${.05+trand()*.09})`;const y=trand()*h,x=trand()*w;g.beginPath();g.moveTo(x,y);g.lineTo(x+30+trand()*80,y+trand()*2-1);g.stroke()}
   g.strokeStyle='rgba(55,28,12,.5)';g.lineWidth=2;for(let y=0;y<h;y+=h/6){g.beginPath();g.moveTo(0,y+1);g.lineTo(w,y+1);g.stroke()}});
+// lime plaster for the village houses (replaced by assets/plaster_wall)
+const plasterTex=canvasTex(256,256,(g,w,h)=>{g.fillStyle='#fff';g.fillRect(0,0,w,h);
+  for(let i=0;i<260;i++){g.fillStyle='rgba(150,130,100,'+(.02+trand()*.05)+')';const r=4+trand()*26;g.beginPath();g.arc(trand()*w,trand()*h,r,0,7);g.fill()}});
+const rockTex=canvasTex(256,256,(g,w,h)=>{g.fillStyle='#fff';g.fillRect(0,0,w,h);
+  for(let i=0;i<220;i++){g.fillStyle='rgba(120,110,95,'+(.03+trand()*.07)+')';g.fillRect(trand()*w,trand()*h,2+trand()*34,1+trand()*5)}});
+const mossTex=canvasTex(256,256,(g,w,h)=>{g.fillStyle='#e8eadc';g.fillRect(0,0,w,h);
+  for(let i=0;i<300;i++){g.fillStyle='rgba(110,150,80,'+(.05+trand()*.12)+')';g.beginPath();g.arc(trand()*w,trand()*h,2+trand()*12,0,7);g.fill()}});
+// water: soft white with brighter streaks and gaps; scrolled down the falls every frame
+const fallsTex=canvasTex(128,256,(g,w,h)=>{g.clearRect(0,0,w,h);
+  for(let x=0;x<w;x++){const t=Math.abs((x+.5)/w-.5)*2,e=t*t;g.fillStyle='rgba('+Math.round(255-75*e)+','+Math.round(255-50*e)+','+Math.round(255-30*e)+','+(.62-.22*e*e)+')';g.fillRect(x,0,1,h)}   // white in the middle, blue-grey at the edges
+  for(let i=0;i<70;i++){const x=trand()*w,y=trand()*h,l=30+trand()*140,ww=1+trand()*5,a=trand()<.3?0:.35+trand()*.6;
+    for(const dy of[0,-h,h]){const gr=g.createLinearGradient(0,y+dy,0,y+dy+l);gr.addColorStop(0,'rgba(255,255,255,0)');gr.addColorStop(.5,'rgba(255,255,255,'+a+')');gr.addColorStop(1,'rgba(255,255,255,0)');
+      g.fillStyle=gr;if(a===0){g.globalCompositeOperation='destination-out';g.fillStyle='rgba(0,0,0,.25)'}g.fillRect(x,y+dy,ww,l);g.globalCompositeOperation='source-over'}}});
 const woodTex=canvasTex(256,256,(g,w,h)=>{
   g.fillStyle='#fff';g.fillRect(0,0,w,h);
   for(let i=0;i<40;i++){g.fillStyle=`rgba(90,50,25,${.03+trand()*.06})`;const r=20+trand()*60;g.beginPath();g.ellipse(trand()*w,trand()*h,r,r*.5,0,0,7);g.fill()}
@@ -264,9 +278,9 @@ const groundTex=canvasTex(1024,1024,(g,w,h)=>{
 /* ---------- facade atlas: one painted "bay" per cell (procedural; replaced by assets/facade_NN.png when present) ---------- */
 const FONT='"Yu Mincho","Noto Serif TC","Noto Serif CJK TC","Songti TC","PMingLiU",serif',INK='#4a2e22';
 const FW=384,FH=256,facCv=document.createElement('canvas'),emiCv=document.createElement('canvas');
-const FS=1.5;   // atlas pixel scale (cells are drawn in 384×256 units, stored at FS×); 32 cells in 4 columns × 8 rows
-facCv.width=emiCv.width=FW*4*FS;facCv.height=emiCv.height=FH*8*FS;
-const fg=facCv.getContext('2d',{willReadFrequently:true}),eg=emiCv.getContext('2d');eg.fillStyle='#000';eg.fillRect(0,0,FW*4*FS,FH*8*FS);
+const FS=1.5,FROWS=12;   // atlas pixel scale (cells are drawn in 384×256 units, stored at FS×); 48 cells in 4 columns × 12 rows
+facCv.width=emiCv.width=FW*4*FS;facCv.height=emiCv.height=FH*FROWS*FS;
+const fg=facCv.getContext('2d',{willReadFrequently:true}),eg=emiCv.getContext('2d');eg.fillStyle='#000';eg.fillRect(0,0,FW*4*FS,FH*FROWS*FS);
 const F={
   rect(x,y,w,h,c,em){fg.fillStyle=c;fg.fillRect(x,y,w,h);eg.fillStyle=em||'#000';eg.fillRect(x,y,w,h)},
   box(x,y,w,h,lw=4){fg.strokeStyle=INK;fg.lineWidth=lw;fg.strokeRect(x,y,w,h);eg.strokeStyle='#000';eg.lineWidth=lw;eg.strokeRect(x,y,w,h)},
@@ -309,10 +323,10 @@ const BAYS=[
   ()=>{F.circle(124,130,82,'#34496f');F.circle(124,130,54,'#f1e6cb','#998');F.kanji('天',124,134,64,'#34496f');F.paper(244,58,112,144,3,4);F.wood(238,202,124,12)},
 ];
 // cells 0-7 homes, 8-15 shops, 16-23 more homes, 24-31 street-level fronts; until painted, 16-31 reuse the procedural set
-for(let i=0;i<32;i++){const ox=(i%4)*FW,oy=Math.floor(i/4)*FH;fg.setTransform(FS,0,0,FS,ox*FS,oy*FS);eg.setTransform(FS,0,0,FS,ox*FS,oy*FS);BAYS[i%16]()}
+for(let i=0;i<48;i++){const ox=(i%4)*FW,oy=Math.floor(i/4)*FH;fg.setTransform(FS,0,0,FS,ox*FS,oy*FS);eg.setTransform(FS,0,0,FS,ox*FS,oy*FS);BAYS[i%16]()}
 fg.setTransform(1,0,0,1,0,0);eg.setTransform(1,0,0,1,0,0);
 const facTex=new THREE.CanvasTexture(facCv),emiTex=new THREE.CanvasTexture(emiCv);facTex.colorSpace=emiTex.colorSpace=THREE.SRGBColorSpace;facTex.anisotropy=emiTex.anisotropy=4;
-const facUV=i=>{const c=i%4,r=Math.floor(i/4);return[(c*FW+5)/(4*FW),1-((r+1)*FH-5)/(8*FH),((c+1)*FW-5)/(4*FW),1-(r*FH+5)/(8*FH)]};
+const facUV=i=>{const c=i%4,r=Math.floor(i/4);return[(c*FW+5)/(4*FW),1-((r+1)*FH-5)/(FROWS*FH),((c+1)*FW-5)/(4*FW),1-(r*FH+5)/(FROWS*FH)]};
 // prop cards: empty until assets/card_NN.png are supplied
 const CW=512,cardCv=document.createElement('canvas');cardCv.width=CW*4;cardCv.height=CW*2;const cg=cardCv.getContext('2d');
 const cardTex=new THREE.CanvasTexture(cardCv);cardTex.colorSpace=THREE.SRGBColorSpace;cardTex.anisotropy=4;
@@ -339,19 +353,22 @@ function loadAssets(){
   const neutral=(im,keep)=>{const c=document.createElement('canvas');c.width=im.width;c.height=im.height;const g=c.getContext('2d',{willReadFrequently:true});g.drawImage(im,0,0);
     const id=g.getImageData(0,0,c.width,c.height),d=id.data;let sum=0;for(let k=0;k<d.length;k+=4)sum+=.299*d[k]+.587*d[k+1]+.114*d[k+2];const gain=Math.min(1.6,232/(sum/(d.length/4)));
     for(let k=0;k<d.length;k+=4){const l=.299*d[k]+.587*d[k+1]+.114*d[k+2];for(let j=0;j<3;j++)d[k+j]=Math.min(255,(l+(d[k+j]-l)*keep)*gain)}g.putImageData(id,0,0);return c};
-  for(const [name,tex,keep] of[['wall_wood',woodTex,.35],['wood_beam',beamTex,.35],['wood_planks',plankTex,.3],['roof_tiles',tileTex,1],['ground_city',groundTex,1],['street_paving',paveTex,1]])
+  for(const [name,tex,keep] of[['wall_wood',woodTex,.35],['wood_beam',beamTex,.35],['wood_planks',plankTex,.3],['plaster_wall',plasterTex,.45],['rock_cliff',rockTex,.5],['rock_moss',mossTex,.9],['roof_tiles',tileTex,.9],['ground_city',groundTex,1],['street_paving',paveTex,1]])
     tryImg(name,im=>{tex.image=keep<1?neutral(im,keep):im;tex.needsUpdate=true});
   for(let i=0;i<32;i++)tryImg('facade_'+pad(i+1),im=>put(i,im));
+  for(let i=0;i<16;i++)tryImg('homewin_'+pad(i+1),im=>put(32+i,im));   // village windows and doorways
   for(let i=0;i<8;i++){tryImg('person_'+pad(i+1),im=>putSprite(i,im));tryImg('plant_'+pad(i+1),im=>putSprite(8+i,im))}
   for(let i=0;i<4;i++)tryImg('rider_'+pad(i+1),im=>putSprite(16+i,im,true));
   for(let i=0;i<4;i++)tryImg('cloud_'+pad(i+1),im=>putCloud(i,im));
+  for(let i=0;i<8;i++)tryImg('pot_'+pad(i+1),im=>putSprite(48+i,im));
+  for(let i=0;i<2;i++)tryImg('horizon_'+pad(i+1),im=>putHorizon(i,im));
   for(let i=0;i<3;i++)tryImg('foliage_'+pad(i+1),im=>putSprite(40+i,im,true));
   for(let i=0;i<6;i++)tryImg('cat_'+pad(i+1),im=>putSprite(CAT_CELL[i],im));
   // vine decals go in the card atlas: climbing ones stand on the bottom edge, hanging ones hang from the top edge
   for(let i=0;i<4;i++)tryImg('vine_'+pad(i+1),im=>{const s=prepSprite(im);if(!s)return;const c=i%4,r=Math.floor(i/4),sc=Math.min((CW-6)/s.w,(CW-6)/s.h),dw=s.w*sc,dh=s.h*sc;
     cg.clearRect(c*CW,r*CW,CW,CW);cg.drawImage(s.cv,s.x0,s.y0,s.w,s.h,c*CW+(CW-dw)/2,(i===1||i===2)?r*CW+3:r*CW+CW-3-dh,dw,dh);cardTex.needsUpdate=true});
   // the player, painted from behind: straight, banking left, banking right
-  ['back','left','right'].forEach((n,i)=>tryImg('player_'+n,im=>{if(putPlayer(i,im)&&i===0)usePlayerSprite()}));
+  ['back','left','right'].forEach((n,i)=>tryImg('player_'+n,im=>putPlayer(i,im)));
   // prop cards; a slot without a painting borrows one that loaded
   const got=[];let left=16;
   const done=()=>{if(--left>0||!got.length)return;for(let i=0;i<16;i++)if(!got.includes(i)){const j=24+got[i%got.length],k=24+i;
@@ -362,7 +379,7 @@ function loadAssets(){
     const d=fg.getImageData(ox,oy,W,H),o=eg.createImageData(W,H);   // paper-white areas glow at night
     for(let k=0,p=0;k<d.data.length;k+=4,p++){const r=d.data[k],g=d.data[k+1],b=d.data[k+2];const mn=Math.min(r,g,b),mx=Math.max(r,g,b);
       let v=r>=b-10?clamp((mn-165)*6,0,255)*clamp(1-(mx-mn-45)/35,0,1):0;   // bright AND unsaturated = paper; honey-coloured wood stays dark
-      if((i>=8&&i<16)||i>=24){const x=(p%W)/W,y=Math.floor(p/W)/H,m=clamp(Math.min(x-.04,.96-x,y-.12,.74-y)*7,0,1);v=Math.max(v*.4,m*60)}   // shops: lamplight spilling from the open front
+      if((i>=8&&i<16)||(i>=24&&i<32)||i===42||i===43||i===45){const x=(p%W)/W,y=Math.floor(p/W)/H,m=clamp(Math.min(x-.04,.96-x,y-.12,.74-y)*7,0,1);v=Math.max(v*.4,m*60)}   // shops: lamplight spilling from the open front
       const s=v/255*1.25;o.data[k]=Math.min(255,(r*.6+100)*s);o.data[k+1]=Math.min(255,(g*.6+100)*s);o.data[k+2]=Math.min(255,(b*.6+100)*s);o.data[k+3]=255}
     eg.putImageData(o,ox,oy);facTex.needsUpdate=emiTex.needsUpdate=true}
 }
@@ -527,6 +544,9 @@ const M={
   flat:new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide,flatShading:true}),
   beam:new THREE.MeshLambertMaterial({map:beamTex,vertexColors:true}),
   plank:new THREE.MeshLambertMaterial({map:plankTex,vertexColors:true}),
+  plas:new THREE.MeshLambertMaterial({map:plasterTex,vertexColors:true}),
+  rock:new THREE.MeshLambertMaterial({map:rockTex,vertexColors:true,side:THREE.DoubleSide,flatShading:true}),
+  falls:new THREE.MeshLambertMaterial({map:fallsTex,color:0xf2fafc,vertexColors:true,transparent:true,depthWrite:false,side:THREE.DoubleSide}),
   fac:new THREE.MeshLambertMaterial({map:facTex,emissiveMap:emiTex,emissive:new THREE.Color(1,.7,.36),emissiveIntensity:0,vertexColors:true,alphaTest:.5,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),
   card:new THREE.MeshLambertMaterial({map:cardTex,alphaTest:.5,side:THREE.DoubleSide}),
 };
@@ -559,8 +579,16 @@ const facDepthU={value:1};
 const SWAY='sin(uTime*1.8+position.x*.3+position.z*.3+position.y*.25)*.42+sin(uTime*3.1+position.x*.7-position.z*.5)*.12';
 M.ban.onBeforeCompile=sh=>{sh.uniforms.uTime=windU;sh.vertexShader='uniform float uTime;\n'+sh.vertexShader.replace('#include <color_vertex>','vColor=vec3(1.);').replace('#include <begin_vertex>','#include <begin_vertex>\n transformed+=normal*('+SWAY+')*color.r;')};
 M.cloth.onBeforeCompile=sh=>{sh.uniforms.uTime=windU;sh.vertexShader='uniform float uTime;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n transformed+=normal*('+SWAY+')*uv.y;')};
+M.rock.onBeforeCompile=sh=>{sh.uniforms.tMoss={value:mossTex};
+  sh.vertexShader='varying vec3 vRw;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n vRw=(modelMatrix*vec4(transformed,1.)).xyz;');
+  sh.fragmentShader='varying vec3 vRw;uniform sampler2D tMoss;\n'+sh.fragmentShader.replace('#include <map_fragment>',`
+    vec3 rN=normalize(cross(dFdx(vRw),dFdy(vRw))),rA=pow(abs(rN),vec3(3.));
+    vec4 rS=(texture2D(map,vRw.zy*vec2(.04,.028))*rA.x+texture2D(map,vRw.xy*vec2(.04,.028))*rA.z)/max(rA.x+rA.z,1e-4);
+    diffuseColor*=mix(rS,texture2D(tMoss,vRw.xz*.05),smoothstep(.55,.8,rN.y));`)};
+// water carries its fade in the vertex colour (1 = full, 0 = gone), not a tint
+M.falls.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <color_fragment>','diffuseColor.a*=vColor.r;')};
 washify(M.roof,.45);
-for(const k of['wood','win','wind','ban','flat','fac','card','cloth','beam','plank'])if(M[k].isMeshLambertMaterial)washify(M[k]);
+for(const k of['wood','win','wind','ban','flat','fac','card','cloth','beam','plank','plas','rock'])if(M[k].isMeshLambertMaterial)washify(M[k]);
 const washU={k:{value:1},ref:{value:1},cool:{value:new THREE.Color(.95,.91,.9)}};   // shadow wash: warm and slightly muted, so timber in shade stays tan, not grey
 function washify(m,st=1){const prev=m.onBeforeCompile;
   m.onBeforeCompile=(sh,r)=>{if(prev)prev(sh,r);sh.uniforms.kWash=washU.k;sh.uniforms.uRef=washU.ref;sh.uniforms.uCool=washU.cool;
@@ -570,13 +598,15 @@ function washify(m,st=1){const prev=m.onBeforeCompile;
     vec3 Lw=Lc/max(wl,1e-4)*wr2*uRef*mix(vec3(1.),mix(uCool,vec3(1.),smoothstep(.3,.95,wr)),kW);
     vec3 outgoingLight=diffuseColor.rgb*Lw+totalEmissiveRadiance;`)};
   m.customProgramCacheKey=()=>'wash'+st+'|'+(prev?prev.toString():'')}
-const newBufs=()=>{const B={wood:new Buf,roof:new Buf,win:new Buf,wind:new Buf,glow:new Buf,ban:new Buf,flat:new Buf,fac:new Buf,card:new Buf,cloth:new Buf,beam:new Buf,plank:new Buf};B.wood.route={beam:B.beam,plank:B.plank};return B};
-const addBufs=B=>{for(const k in B){if(!(B[k] instanceof Buf))continue;const m=B[k].mesh(M[k]);if(m){m.matrixAutoUpdate=false;m.castShadow=k==='wood'||k==='roof'||k==='flat'||k==='beam'||k==='plank';m.receiveShadow=k!=='glow'&&k!=='win';scene.add(m)}}};
+const newBufs=()=>{const B={wood:new Buf,roof:new Buf,win:new Buf,wind:new Buf,glow:new Buf,ban:new Buf,flat:new Buf,fac:new Buf,card:new Buf,cloth:new Buf,beam:new Buf,plank:new Buf,plas:new Buf,rock:new Buf,falls:new Buf};B.wood.route={beam:B.beam,plank:B.plank};return B};
+const addBufs=B=>{for(const k in B){if(!(B[k] instanceof Buf))continue;const m=B[k].mesh(M[k]);if(m){m.matrixAutoUpdate=false;m.castShadow=k==='wood'||k==='roof'||k==='flat'||k==='beam'||k==='plank'||k==='plas'||k==='rock';m.receiveShadow=k!=='glow'&&k!=='win'&&k!=='falls';scene.add(m)}}};
 
 /* ---------- palette & shared geometry ---------- */
 const WOODS=['#ecd5a8','#e8cfa0','#efd9b0','#e5cc9c','#ead3a6'].map(C),DARK=C('#dcbd8c'),PLANK=C('#ecd4a6'),TRUNK=C('#d9b98a');
 // pale grey-blue tiles as in the paintings, with the odd copper-green or wood-shingle roof
-const ROOFS=['#68737f','#737c88','#5e6a77','#6a7673','#717685','#626e69','#7a8088','#68737f','#737c88','#5c8477','#7a5e4b'].map(C);
+const _fRay=new THREE.Raycaster(),_fMat=new THREE.MeshBasicMaterial({side:THREE.DoubleSide});
+const GIBO=C('#c9a24a'),SORIN=C('#b39a62');
+const ROOFS=['#8794a2','#919aa7','#7f8b99','#88948f','#8f94a3','#808c86','#989da5','#8794a2','#919aa7','#78a294','#98806c'].map(C);   // pale blue-grey slate, like the concept paintings
 const PAPER=C('#fbf3df'),PAPER2=C('#f3e3bd'),PAPERD=C('#a9b0bd');
 const LRED=C('#ec8a6a'),LCREAM=C('#ffe9b0'),RED=C('#d99c86'),INDIGO=C('#7484a6'),WHITE=C('#f4f0e6');
 const GREENS=['#6f9a5a','#5f8a52','#86ad6a','#4f7a55'].map(C),PINKS=['#f4c3cf','#f0b0c2','#f8d5dc'].map(C),POTS=['#b06a4a','#5f7fa8','#d8d0c0'].map(C);
@@ -615,8 +645,11 @@ function collide(p,r){
 
 /* ---------- city generation ---------- */
 const genT0=performance.now();
+const jobSpots=[];   // {pos (standing height), T, floor, zone 0 core / 1 town and transition / 2 villages}
 const lanternPts=[],allBalconies=[],allDoors=[],towers=[],mids=[],terraces=[],ropeP=[];
 const RES=()=>{const k=RI(0,15);return k<8?k:k+8},SHOP=()=>RI(8,15),STREET=()=>RI(24,31);
+// village cells: windows 32-39 and 47, home doors 40 41 44, little shops 42 tea 43 grocery 45 broom-maker 46 bath
+const HWIN=()=>pick([32,33,34,35,36,37,38,39,47]),HDOOR=()=>pick([40,41,44]),HSHOP=()=>pick([42,43,45,46]);
 // detail (props, people, lantern strings) lives in separate meshes that are hidden beyond DET_D
 const detailMeshes=[],DET_D=430;
 const bufs2=()=>{const B=newBufs();B.D=newBufs();B.Ds=[B.D];return B};
@@ -663,7 +696,7 @@ function bigFlag(B,cx,cz,side,dist,s,ytop,h,cell){
 
 /* ---------- hand-painted billboard sprites: people, trees, flying riders, prop cards ---------- */
 // cells: 0-7 people, 8-15 trees, 16-19 riders (side view, facing right), 24-39 prop cards
-const SPC=8,SPR=6,SPS=384,spCv=document.createElement('canvas');spCv.width=SPC*SPS;spCv.height=SPR*SPS;
+const SPC=8,SPR=7,SPS=384,spCv=document.createElement('canvas');spCv.width=SPC*SPS;spCv.height=SPR*SPS;
 const spg=spCv.getContext('2d');
 function spCell(i,fn){spg.save();spg.translate((i%SPC)*SPS,Math.floor(i/SPC)*SPS);spg.scale(SPS/512,SPS/512);spg.strokeStyle=INK;spg.lineWidth=6;spg.lineJoin='round';fn(spg);spg.restore()}
 const FBK=['#5d7fa8','#c0574a','#7aa07a','#d9c9a8','#8a6a9a','#d0965a','#6a8aa8','#a8a39a'];
@@ -692,6 +725,11 @@ for(let i=0;i<4;i++)spCell(16+i,g=>{
   g.beginPath();g.moveTo(300,296);g.lineTo(380,300);g.lineTo(386,330);g.lineTo(300,326);g.closePath();g.fill();g.stroke();
   g.fillStyle='#f3d3b8';g.beginPath();g.arc(296,150,30,0,7);g.fill();g.stroke();g.fillStyle='#2a2422';g.beginPath();g.arc(290,142,32,Math.PI*.9,Math.PI*2.1);g.fill()});
 for(let i=0;i<3;i++)spCell(40+i,g=>{for(let k=0;k<40;k++){const a=frand()*6.28,r=Math.sqrt(frand())*170,x=256+Math.cos(a)*r*1.3,y=260+Math.sin(a)*r*(i===1?.45:.8);g.fillStyle=['#86ad6a','#6f9a5a','#5f8a52','#9ac07a'][k%4];g.beginPath();g.arc(x,y,40+frand()*45,0,7);g.fill();g.lineWidth=3;g.stroke()}});
+for(let i=0;i<8;i++)spCell(48+i,g=>{const cs=TREECOL[[3,2,4,7,0,6,3,1][i]];
+  for(let k=0;k<14;k++){const a=frand()*6.28,r=Math.sqrt(frand())*110,x=256+Math.cos(a)*r*1.2,y=250+Math.sin(a)*r*.7;g.fillStyle=cs[k%3];g.beginPath();g.arc(x,y,34+frand()*30,0,7);g.fill();g.lineWidth=3;g.stroke()}
+  g.lineWidth=6;g.fillStyle=['#5d7fa8','#a0704e','#b98a5a','#c0764a','#7aa08a','#34496f','#c0764a','#e8dcc4'][i];g.beginPath();g.moveTo(170,330);g.lineTo(342,330);g.lineTo(318,500);g.lineTo(194,500);g.closePath();g.fill();g.stroke()});
+const POTC=()=>48+Math.floor(Math.random()*8);   // a potted plant sprite (cells 48-55)
+function potPlant(x,y,z,s=1){addSprite(SPRS.trees,x,y,z,1.9*s,POTC(),0,Math.random()<.5?1:-1)}
 const spTex=new THREE.CanvasTexture(spCv);spTex.colorSpace=THREE.SRGBColorSpace;spTex.anisotropy=4;
 const spTint={value:new THREE.Color(1,1,1)};
 // size multipliers (the settings panel changes these): a storey is ~6.2 units for 3.3 m, so a person of 1.7 m is ~3.2 units
@@ -718,6 +756,8 @@ function spMat(maxD,scaleU){
   m.uniforms.map.value=spTex;m.uniforms.uTint=spTint;if(scaleU)m.uniforms.uScale=scaleU;return m;
 }
 const SPRS={people:[],trees:[]};
+// addSprite takes coordinates in the current building frame; wSprite takes world coordinates
+function wSprite(list,x,y,z,size,cell,anchor=0,flip=1){list.push(x,y,z,size,cell,anchor,flip)}
 function addSprite(list,x,y,z,size,cell,anchor=0,flip=1){const [wx,wz]=xfP(x,z);list.push(wx,y,wz,size,cell,anchor,flip)}
 function spriteMesh(arr,maxD,dynamic,scaleU){
   const n=Math.max(1,arr.length/7),g=new THREE.InstancedBufferGeometry(),pl=new THREE.PlaneGeometry(1,1);pl.translate(0,.5,0);
@@ -749,7 +789,7 @@ function stall(B,x,y,z){
 function furnish(B,x0,z0,x1,z1,y,n,big){
   for(let i=0;i<n;i++){const x=R(x0,x1),z=R(z0,z1),k=rand();
     if(k<.15)person(B,x,y,z);
-    else if(k<.25){B.wood.box(x,y+.3,z,.7,.6,.7,pick(POTS));B.flat.at(ico0,x,y+1.1,z,.8,R(.7,1.3),.8,chance(.25)?pick(PINKS):pick(GREENS),0,R(0,3))}
+    else if(k<.25)potPlant(x,y,z,R(.9,1.3))
     else if(k<.32){B.wood.at(barrelG,x,y+.55,z,1,1,1,pick(WOODS));if(chance(.4)){B.wood.at(barrelG,x+1,y+.55,z,1,1,1,pick(WOODS));B.wood.at(barrelG,x+.5,y+1.6,z,1,1,1,pick(WOODS))}}
     else if(k<.39){for(let j=RI(1,3),h=0;j>0;j--){const s=R(.7,1);B.wood.box(x+R(-.1,.1),y+h+s/2,z+R(-.1,.1),s,s,s,pick(WOODS));h+=s}}
     else if(k<.45){B.wood.box(x,y+1.1,z,.18,2.2,.18,DARK);lantern(B,x,y+2.7,z,.9,LCREAM,2)}
@@ -799,7 +839,7 @@ function house(B,x,y,z,w,d,st,rc,shop,posts){
   }
   if(chance(.6))roofGable(B,x,y+h-.3,z,w,d,R(3,4.6),rc);else roof(B.roof,x,y+h-.4,z,Math.max(.3,w-d),Math.max(.3,d-w),w+5,d+5,R(3.4,4.6),rc,1.2,3);
 }
-function balconyProps(B,T,cx,cz,side,dist,fy,dep,bw,s){
+function balconyProps(B,T,cx,cz,side,dist,fy,dep,bw,s,quiet){
   const [nx,nz]=NRM[side],tx=nz,tz=-nx,X=side<2,com=T.type==='com',pt=(d,a)=>[cx+nx*d+tx*a,cz+nz*d+tz*a],ra=()=>s+R(-.42,.42)*bw;
   if(chance(.4)){ // a broom parked against the railing, like a bicycle
     const a=ra(),[bx,bz]=pt(dist+dep-1.2,a),[sx,sz]=pt(dist+dep-.85,a);
@@ -807,8 +847,8 @@ function balconyProps(B,T,cx,cz,side,dist,fy,dep,bw,s){
   if(chance(.5)){const [qx,qz]=pt(dist+R(.9,2),ra());B.wood.at(barrelG,qx,fy+.95,qz,1,1,1,pick(WOODS));if(chance(.4))B.wood.at(barrelG,qx+tx*1.05,fy+.8,qz+tz*1.05,.8,.75,.8,pick(WOODS))}
   if(chance(.45)){const [qx,qz]=pt(dist+R(.8,1.6),ra());B.wood.box(qx,fy+.8,qz,.9,.8,.9,pick(WOODS));if(chance(.5))B.wood.box(qx+tx*.1,fy+1.5,qz+tz*.1,.7,.6,.7,pick(WOODS))}
   if(chance(.22))for(let j=RI(2,3);j>0;j--){const [qx,qz]=pt(dist+R(1,2.2),ra());B.wood.at(barrelG,qx,fy+.82,qz,.7,.8,.7,STRAW,0,R(0,3),Math.PI/2)}
-  if(chance(.3))for(let a=-bw/2+.8;a<bw/2-.8;a+=R(.9,1.6)){const [qx,qz]=pt(dist+dep-.7,s+a);B.wood.box(qx,fy+.7,qz,.6,.55,.6,pick(POTS));B.flat.at(ico0,qx,fy+1.35,qz,.6,R(.5,1),.6,chance(.3)?pick(PINKS):pick(GREENS),0,R(0,3))}
-  if(chance(com?.55:.2)){ // cloth awning, loose edge sways
+  if(chance(.3))for(let a=-bw/2+.8;a<bw/2-.8;a+=R(.9,1.6)){const [qx,qz]=pt(dist+dep-.7,s+a);potPlant(qx,fy+.4,qz,R(.75,1.05))}
+  if(!quiet&&chance(com?.55:.2)){ // cloth awning, loose edge sways
     const c=pick(AWN),a=pt(dist+dep+.7,s-bw/2),b=pt(dist+dep+.7,s+bw/2),c2=pt(dist+.3,s+bw/2),d=pt(dist+.3,s-bw/2);
     B.cloth.quad([a[0],fy+4.6,a[1]],[b[0],fy+4.6,b[1]],[c2[0],fy+5.9,c2[1]],[d[0],fy+5.9,d[1]],c,0,.35,1,0);
     B.cloth.quad([a[0],fy+4,a[1]],[b[0],fy+4,b[1]],[b[0],fy+4.6,b[1]],[a[0],fy+4.6,a[1]],c,0,1,1,.35);
@@ -818,7 +858,7 @@ function balconyProps(B,T,cx,cz,side,dist,fy,dep,bw,s){
     const a=s+(chance(.5)?1:-1)*bw*.3;for(const e of[-.4,.4]){const [qx,qz]=pt(dist+.55,a+e);B.wood.box(qx,fy+3.9,qz,.13,7,.13,DARK)}
     for(let r=0;r<9;r++){const [qx,qz]=pt(dist+.55,a);B.wood.box(qx,fy+.9+r*.75,qz,X?.1:.8,.1,X?.8:.1,DARK)}}
   if(chance(.08)){const [qx,qz]=pt(dist+dep*.5,ra());umbrella(B,qx,fy+.4,qz)}
-  if(chance(.25))for(let k=RI(2,6);k>0;k--){const L=R(1,4.5);panel(B.cloth,cx,cz,side,dist+dep+.14,ra(),R(.6,1.4),fy+.15-L,L,pick(GREENS),0,1,1,0)}   // ivy spilling over the edge
+  if(!quiet&&chance(.25))for(let k=RI(2,6);k>0;k--){const L=R(1,4.5);panel(B.cloth,cx,cz,side,dist+dep+.14,ra(),R(.6,1.4),fy+.15-L,L,pick(GREENS),0,1,1,0)}   // ivy spilling over the edge
   const np=chance(com?.6:.4)?RI(1,com?4:2):0;for(let i=0;i<np;i++){const [qx,qz]=pt(dist+R(1.2,dep-.8),ra());person(B,qx,fy+.4,qz)}
   for(let k=chance(.65)?RI(1,2):0;k>0;k--){const [qx,qz]=pt(dist+R(1.3,dep-1.3),ra());card(qx,fy+.4,qz)}
 }
@@ -867,27 +907,30 @@ function balcony(B,T,cx,cz,side,len,dist,fy,opt={}){
     const e=pt(dist+HB/2,h0);B.wood.box(e[0],fy+1.5,e[1],X?HB:.2,.2,X?.2:HB,DARK);B.wood.box(e[0],fy+.9,e[1],X?HB:.14,.14,X?.14:HB,DARK);
   }else plank(L0,L1,0,dep);
   const [fx,fz]=pt(dist+dep,s);
-  B.wood.box(fx,fy+1.5,fz,X?.22:bw,.22,X?bw:.22,DARK);B.wood.box(fx,fy+.85,fz,X?.14:bw,.14,X?bw:.14,DARK);
+  // the outer rail, broken where an outside stair leaves or arrives (opt.gaps, ranges along the wall)
+  let segsR=[[L0,L1]];for(const [g0,g1] of opt.gaps||[]){const nx2=[];for(const [u0,u1] of segsR){if(g1<=u0||g0>=u1){nx2.push([u0,u1]);continue}if(g0>u0)nx2.push([u0,g0]);if(g1<u1)nx2.push([g1,u1])}segsR=nx2}
+  for(const [u0,u1] of segsR){const ln=u1-u0;if(ln<.3)continue;const [rx,rz]=pt(dist+dep,(u0+u1)/2);
+    B.wood.box(rx,fy+1.5,rz,X?.22:ln,.22,X?ln:.22,DARK);B.wood.box(rx,fy+.85,rz,X?.14:ln,.14,X?ln:.14,DARK);
+    const np=Math.max(2,Math.round(ln/3.5)+1);for(let i=0;i<np;i++){const [qx,qz]=pt(dist+dep,u0+ln*i/(np-1));B.wood.box(qx,fy+.95,qz,.3,1.5,.3,DARK)}}
   for(const e of[-1,1]){const [ex,ez]=pt(dist+dep/2,s+e*bw/2);B.wood.box(ex,fy+1.5,ez,X?dep:.22,.22,X?.22:dep,DARK)}
-  const np=Math.max(2,Math.round(bw/3.5)+1);
-  for(let i=0;i<np;i++){const [qx,qz]=pt(dist+dep,s-bw/2+bw*i/(np-1));B.wood.box(qx,fy+.95,qz,.3,1.5,.3,DARK)}
   for(const e of[-1,1]){const [qx,qz]=pt(dist+dep*.45,s+e*bw*.4);B.wood.box(qx,fy-dep*.45,qz,.35,dep*1.25,.35,DARK,new THREE.Quaternion().setFromUnitVectors(UP,new V3(nx,1,nz).normalize()))}
   let ps=s,pb=bw;const ex=opt.clear||opt.hole;
   if(ex){const l=ex[0]-L0,r=L1-ex[1];if(l>=r){pb=l;ps=L0+l/2}else{pb=r;ps=ex[1]+r/2}}
-  for(let i=pb>2?RI(0,T.type==='res'?4:2):0;i>0;i--){const [qx,qz]=pt(dist+R(1,3.8),ps+R(-.42,.42)*pb);D.wood.box(qx,fy+.7,qz,.7,.6,.7,pick(POTS));D.flat.at(ico0,qx,fy+1.5,qz,.8,R(.7,1.2),.8,chance(.25)?pick(PINKS):pick(GREENS),0,R(0,3))}
+  for(let i=pb>2?RI(0,T.type==='res'?4:2):0;i>0;i--){const [qx,qz]=pt(dist+R(1,3.8),ps+R(-.42,.42)*pb);potPlant(qx,fy+.4,qz,R(.9,1.3))}
   if(pb>2&&chance(T.type==='com'?.85:.6))for(let k=RI(1,2);k>0;k--){const [qx,qz]=pt(dist+1,ps+R(-.45,.45)*pb);lantern(D,qx,fy+5.4,qz,1.25,LCOL(),RI(0,1))}
   if(pb>8&&chance(.12)){const [qx,qz]=pt(dist+2.4,ps+R(-.25,.25)*pb);blobTree(D,qx,fy+.4,qz,1.5,pick([PINKS,GREENS,AUTUMN]))}
-  if(T.type==='res'&&chance(.3)){ // laundry
+  const quiet=!!opt.quiet;
+  if(!quiet&&T.type==='res'&&chance(.3)){ // laundry
     D.wood.box(fx,fy+3.3,fz,X?.06:bw,.06,X?bw:.06,DARK);
     for(const e of[-1,1]){const [qx,qz]=pt(dist+dep,s+e*bw/2);D.wood.box(qx,fy+2.5,qz,.16,1.8,.16,DARK)}
     for(let a=-bw/2+1;a<bw/2-1;a+=R(1.3,2))panel(D.cloth,cx,cz,side,dist+dep,s+a,R(.8,1.2),fy+1.8,1.5,pick([WHITE,WHITE,INDIGO,C('#c9d6e6'),C('#d99a8a')]),0,1,1,0);
   }
-  if(chance(.22))banner(D,cx,cz,side,dist+dep+.15,s+R(-.3,.3)*bw,2.1,fy-8.3,8,RI(0,GENERAL.length-1));
-  if(chance(.3))vine(D,cx,cz,side,dist+dep+.17,s+R(-.35,.35)*bw,fy+.35,R(3,4.6),true);   // greenery spilling over the rail
+  if(!quiet&&chance(.22))banner(D,cx,cz,side,dist+dep+.15,s+R(-.3,.3)*bw,2.1,fy-8.3,8,RI(0,GENERAL.length-1));
+  if(!quiet&&chance(.3))vine(D,cx,cz,side,dist+dep+.17,s+R(-.35,.35)*bw,fy+.35,R(3,4.6),true);   // greenery spilling over the rail
   if(chance(.2)){const a=s+R(-.4,.4)*bw,[qx,qz]=pt(dist+dep-.4,a),w=xfP(qx,qz);ropeP.push(w[0],fy,w[1],w[0],fy-1.3,w[1]);   // a pot hung under the deck
-    D.wood.box(qx,fy-1.6,qz,.7,.55,.7,pick(POTS));D.flat.at(ico0,qx,fy-1.1,qz,.7,.5,.7,pick(GREENS),0,R(0,3));
+    potPlant(qx,fy-1.9,qz,.8);
     for(let k=0;k<4;k++)panel(D.cloth,qx,qz,R(0,1)<.5?2:0,.3,R(-.3,.3),.4,fy-1.9-R(.5,1.6),R(.8,1.8),pick(GREENS),0,1,1,0)}
-  if(pb>2)balconyProps(D,T,cx,cz,side,dist,fy,dep,pb,ps);
+  if(pb>2)balconyProps(D,T,cx,cz,side,dist,fy,dep,pb,ps,quiet);
   rec(T,{lx:px,lz:pz,fy,side,s,dist,dep,bw,cx,cz});
 }
 // a straight flight of stairs climbing one storey along the wall, inside the balcony band (treads, two stringers, a handrail)
@@ -900,9 +943,30 @@ function flight(B,cx,cz,side,dist,a0,run,y0,fh){
   for(let i=0;i<=n;i+=3){const p=P(dist+1.95,a0+tr*i);B.wood.box(p[0],y0+rise*i+.7,p[1],.16,1.4,.16,DARK)}
   const m=P(dist+1.15,a0+run/2),wm=xfP(m[0],m[1]),wo=xfD(nx,nz);(window.__flights=window.__flights||[]).push([wm[0],y0+fh/2,wm[1],wo[0],wo[1]]);
 }
+// a flight climbing one storey OUTSIDE the balcony rail, as wide as the balcony is deep (or a little less): a landing at each end
+// sits beyond an opening in that floor's rail; joists carry the landings and a brace holds up the middle
+function outFlight(B,cx,cz,side,o,a0,run,y0,fh,sw,LD){
+  const [nx,nz]=NRM[side],tx=nz,tz=-nx,X=side<2,n=Math.max(10,Math.round(fh/.5)),rise=fh/n,tr=run/n,P=(oo,a)=>[cx+nx*oo+tx*a,cz+nz*oo+tz*a],oc=o+sw/2,a1=a0+run;
+  for(let i=0;i<n;i++){const p=P(oc,a0+tr*(i+.5));B.wood.box(p[0],y0+rise*(i+1)-.1,p[1],X?sw:tr+.08,.18,X?tr+.08:sw,PLANK)}
+  for(const [a,y] of[[a0-LD/2,y0],[a1+LD/2,y0+fh]]){const p=P(oc,a);B.wood.box(p[0],y-.2,p[1],X?sw:LD,.4,X?LD:sw,PLANK);addCol(p[0],y-.2,p[1],X?sw:LD,.4,X?LD:sw);
+    const j0=o-1.6,j1=o+sw;for(const e of[-.4,.4]){const q=P((j0+j1)/2,a+e*LD);B.wood.box(q[0],y-.6,q[1],X?j1-j0:.3,.35,X?.3:j1-j0,DARK)}}
+  const dv=new V3(tx*run,fh,tz*run),L=dv.length(),q=alongQ(dv.normalize());
+  for(const oo of[o+.1,o+sw-.1]){const c=P(oo,a0+run/2);B.wood.box(c[0],y0+fh/2-.25,c[1],.18,.55,L,DARK,q);
+    const hr=P(oo,a0+run/2);B.wood.box(hr[0],y0+fh/2+1.35,hr[1],.15,.15,L,DARK,q);
+    for(let i=0;i<=n;i+=3){const pp=P(oo,a0+tr*i);B.wood.box(pp[0],y0+rise*i+.7,pp[1],.16,1.4,.16,DARK)}}
+  // rails round the landings on their open sides
+  for(const [a,y,e] of[[a0-LD/2,y0,-1],[a1+LD/2,y0+fh,1]]){const r=P(o+sw-.1,a);B.wood.box(r[0],y+1.4,r[1],X?.15:LD,.15,X?LD:.15,DARK);
+    const k=P(oc,a+e*LD/2);B.wood.box(k[0],y+1.4,k[1],X?sw:.15,.15,X?.15:sw,DARK);for(const oo of[o+.1,o+sw-.1]){const pp=P(oo,a+e*LD/2);B.wood.box(pp[0],y+.7,pp[1],.18,1.4,.18,DARK)}}
+  // a knee brace from the middle of the flight down to the floor beam of the balcony below
+  {const m=P(oc,a0+run*.55),b0=P(o-1,a0+run*.55),pt0=new V3(m[0],y0+fh*.55-.6,m[1]),pt1=new V3(b0[0],y0-1.2,b0[1]),d=pt0.clone().sub(pt1),Lb=d.length();
+   B.wood.box((pt0.x+pt1.x)/2,(pt0.y+pt1.y)/2,(pt0.z+pt1.z)/2,.3,.3,Lb,DARK,alongQ(d.normalize()))}
+  for(let i=1;i<4;i++){const c=P(oc,a0+run*i/4);addCol(c[0],y0+fh*i/4,c[1],X?sw:run/4,.8,X?run/4:sw)}
+  const m=P(oc,a0+run/2),wm=xfP(m[0],m[1]),wo=xfD(nx,nz);(window.__flights=window.__flights||[]).push([wm[0],y0+fh/2,wm[1],wo[0],wo[1],'out']);
+}
 // engawa: a veranda running right round one floor, its posts carrying an eave hung with lanterns
 function veranda(B,T,cx,cz,w,d,fy,fh){
-  const D=B.D,dep=3.4,hx=w/2+dep,hz=d/2+dep,ph=fh-.4;
+  const D=B.D,dep=3.4,hx=w/2+dep,hz=d/2+dep,ov=dep+1.75,rows=2,t=Math.pow(dep/ov,1/.9),i0=Math.floor(t*rows),f0=t*rows-i0,rh=k=>1.9*Math.pow(1-k/rows,1.9),
+    ph=fh-1.1+lerp(rh(i0),rh(Math.min(rows,i0+1)),f0)-.2-.2;   // posts run up to just under the roof where they stand (the eave roof below: base fy+fh-1.1, rise 1.9, overhang dep+1.75, 2 rows)
   B.wood.box(cx,fy+.2,cz,w+dep*2,.4,d+dep*2,PLANK);addCol(cx,fy+.2,cz,w+dep*2,.4,d+dep*2);
   for(const [x0,z0,x1,z1] of[[hx,-hz,hx,hz],[-hx,-hz,-hx,hz],[-hx,hz,hx,hz],[-hx,-hz,hx,-hz]]){
     const X=x0!==x1,len=X?2*hx:2*hz,mx=cx+(x0+x1)/2,mz=cz+(z0+z1)/2;
@@ -974,7 +1038,7 @@ function stairs(B,cx,cz,side,w,d,fy,fh){
 function bays(B,T,cx,cz,side,len,dist,fy,plain,ground,fh){
   const [nx,nz]=NRM[side],tx=nz,tz=-nx,ph=fh-.8,np=Math.max(1,Math.round(len/(fh*1.15))),pw=len/np,P=(dd,a)=>[cx+nx*dd+tx*a,cz+nz*dd+tz*a];
   for(let i=0;i<np;i++)if(chance(.86)){
-    const sa=-len/2+pw*(i+.5),bw=Math.min(pw-.8,ph*1.55),u=facUV(ground?(chance(.65)?STREET():SHOP()):(T.type==='com'&&chance(.55)?SHOP():RES()));
+    const sa=-len/2+pw*(i+.5),bw=Math.min(pw-.8,ph*1.55),u=facUV(ground?(T.trans&&chance(T.trans)?HSHOP():chance(.65)?STREET():SHOP()):T.trans&&chance(T.trans*.9)?HWIN():(T.type==='com'&&chance(.55)?SHOP():RES()));
     panel(B.fac,cx,cz,side,dist+.2,sa,bw,fy+.62,ph,chance(.72)?LITC:UNLIT,u[0],u[1],u[2],u[3]);
     if(plain)continue;
     if(chance(.28)){const a=P(dist+2,sa-bw/2),b=P(dist+2,sa+bw/2),c=P(dist+.1,sa+bw/2),e=P(dist+.1,sa-bw/2);
@@ -1034,21 +1098,28 @@ function genTower(T,B){
     // and the balcony above gets an opening in its floor where the flight comes up through it
     const flights=[];
     for(let side=0;side<4;side++){const len=side<2?d:w,run=fh*1.3;if(len<run+5)continue;
-      for(let f=0;f<floors-1;f++)if(kind[f][side]===2&&kind[f+1][side]===2&&chance(.45)){const a0=R(-len/2+1.2,len/2-run-1.2);flights.push({side,f,a0,a1:a0+run,run});break}}
+      for(let f=0;f<floors-1;f++)if(kind[f][side]===2&&kind[f+1][side]===2&&chance(.55)){
+        if(chance(.45)){const LD=2.2,sw=4.5*(chance(.5)?1:.8);if(len<run+2*LD+2)continue;   // outside the rail: openings in the rails, not the floors
+          const a0=R(-len/2+LD+.8,len/2-run-LD-.8);flights.push({side,f,a0,a1:a0+run,run,out:true,sw,LD});break}
+        const a0=R(-len/2+1.2,len/2-run-1.2);flights.push({side,f,a0,a1:a0+run,run});break}}
+    for(const t of flights)if(t.out){const i=flagSides.indexOf(t.side);if(i>=0)flagSides.splice(i,1)}
     for(let f=0;f<floors;f++){
       const fy=y+f*fh,up=seg>0||f>0,ground=!up,ver=verF[f];
       B.wood.box(cx,fy+.3,cz,w+1,.6,d+1,DARK);
       if(ver)veranda(B,T,cx,cz,w,d,fy,fh);
-      else if(f>0&&!flights.some(t=>t.f===f-1)&&chance(.3))roof(B.roof,cx,fy-.9,cz,w,d,w+6,d+6,1.9,T.rc,.9,2);   // no skirt roof where a stairwell comes up
+      else if(f>0&&!flights.some(t=>t.f===f-1&&!t.out)&&chance(mid?.3:.45))roof(B.roof,cx,fy-.9,cz,w,d,w+6,d+6,1.9,T.rc,.9,2);   // no skirt roof where a stairwell comes up
       for(let side=0;side<4;side++){
         const len=side<2?d:w,dist=(side<2?w:d)/2,[nx,nz]=NRM[side],tx=nz,tz=-nx,free=up&&!ver&&side!==ms&&side!==ms2,tp=plan.find(p=>p.side===side&&p.f===f);
         const lo=flights.find(t=>t.side===side&&t.f===f),hi=flights.find(t=>t.side===side&&t.f===f-1);
-        bays(B,T,cx,cz,side,len,dist,fy,ver||!!lo,ground,fh);   // no little window eaves along a wall with a flight on it
+        bays(B,T,cx,cz,side,len,dist,fy,ver||!!(lo&&!lo.out),ground,fh);   // no little window eaves along a wall with a flight on it
         if(ground)shopfront(B,T,cx,cz,side,len,dist,fy);
         if(free&&tp)terrace(B,T,cx,cz,side,len,dist,fy,f<floors-1,tp.link);
         else if(free&&kind[f][side]){
-          balcony(B,T,cx,cz,side,len,dist,fy,{full:kind[f][side]===2,clear:lo?[lo.a0-.9,lo.a1+.9]:null,hole:hi?[hi.a1-hi.run*.55,hi.a1+.15]:null});
-          if(lo)flight(B,cx,cz,side,dist,lo.a0,lo.run,fy+.4,fh);
+          const li=lo&&!lo.out?lo:null,hn=hi&&!hi.out?hi:null,lout=lo&&lo.out?lo:null,hout=hi&&hi.out?hi:null,gaps=[];
+          if(lout)gaps.push([lout.a0-lout.LD,lout.a0]);if(hout)gaps.push([hout.a1,hout.a1+hout.LD]);
+          balcony(B,T,cx,cz,side,len,dist,fy,{full:kind[f][side]===2,clear:li?[li.a0-.9,li.a1+.9]:null,hole:hn?[hn.a1-hn.run*.55,hn.a1+.15]:null,gaps,quiet:!!(lout||hout)});
+          if(li)flight(B,cx,cz,side,dist,li.a0,li.run,fy+.4,fh);
+          if(lout)outFlight(B,cx,cz,side,dist+4.5+.25,lout.a0,lout.run,fy+.4,fh,lout.sw,lout.LD);
         }
         if(f===0&&chance(.45)){const a=(chance(.5)?1:-1)*(len/2-1.6);B.wood.box(cx+nx*(dist+.45)+tx*a,y+h/2,cz+nz*(dist+.45)+tz*a,.36,h,.36,PIPE)}
         if(f===floors-1&&!ver&&chance(T.type==='com'?.5:.25)){const a=[cx+nx*(dist+2.7)-tx*len/2,cz+nz*(dist+2.7)-tz*len/2],b=[cx+nx*(dist+2.7)+tx*len/2,cz+nz*(dist+2.7)+tz*len/2];
@@ -1109,7 +1180,9 @@ function genTower(T,B){
       for(let side=0;side<4;side++){const u=facUV(RI(0,4));panel(B.fac,cx,cz,side,(side<2?w:d)*.275+.2,0,Math.min(9.6,(side<2?d:w)*.55-1),y+5.6,6.2,LITC,u[0],u[1],u[2],u[3])}
       y+=12}
     roof(B.roof,cx,y-.5,cz,Math.max(.3,(w-d)*.5),Math.max(.3,(d-w)*.5),w*.6+12,d*.6+12,mid?7:11,T.rc,2.6,5);addCol(cx,y+2.5,cz,w*.6,6,d*.6);
-    B.wood.box(cx,y+13,cz,.6,8,.6,DARK);B.glow.at(ico0,cx,y+17.5,cz,.9,.9,.9,C('#f0c85a'));T.top=y+11;
+    {const sy=y+(mid?6.5:10.5),sh=mid?9:15;B.flat.at(new THREE.CylinderGeometry(.35,.45,1,8,1),cx,sy+sh/2,cz,1,sh,1,SORIN);B.flat.at(new THREE.CylinderGeometry(1,1.2,1,10,1),cx,sy+.6,cz,1.6,1.2,1.6,SORIN);   // sorin: the spire of rings
+      for(let k=0;k<9;k++)B.flat.at(new THREE.CylinderGeometry(1,1,1,12,1),cx,sy+2.6+k*sh*.06,cz,1.5-k*.07,.28,1.5-k*.07,SORIN);
+      B.flat.at(ico0,cx,sy+2.6+sh*.62,cz,.9,.5,.9,SORIN);B.glow.at(ico0,cx,sy+sh+.6,cz,.8,1.1,.8,C('#f0c85a'));T.top=y+11}
   }
   // big name signs, each in the frame of the block it hangs on
   for(let k=0;k<(mid?1:3);k++){const sg=segs[Math.floor(segs.length*(.25+.25*k))],side=(T.cell+k)%4,dist=(side<2?sg.w:sg.d)/2,bh=Math.min(20,sg.h-1);XF=sg.xf;
@@ -1127,7 +1200,8 @@ function genTower(T,B){
     allDoors.push({pos:new V3(wp[0],b.fy+2.6,wp[1]),T,floor:Math.round(b.fy/7)+1,nx:wn[0],nz:wn[1]});
   }
   XF=null;
-  for(const b of T.balconies)if(!b.used&&b.bw>5&&b.fy>20)allBalconies.push(b);
+  if(!T.trans)for(const b of T.balconies)if(!b.used&&b.bw>5&&b.fy>20)allBalconies.push(b);
+  for(const b of T.balconies)if(b.fy>12&&b.bw>4)jobSpots.push({pos:new V3(b.x,b.fy+2.6,b.z),T,floor:Math.round(b.fy/7)+1,zone:T.trans||T.mid?1:0});
 }
 // tower placement
 const links=[];
@@ -1207,7 +1281,8 @@ const tb=(x,z)=>{const k=Math.floor((x+1200)/480)+','+Math.floor((z+1200)/480);r
 
 // an arched vermilion bridge between two points, rising a little in the middle
 function archBridge(B,a,b){
-  const d=new V3().subVectors(b,a),dist=Math.hypot(d.x,d.z),dir=new V3(d.x,0,d.z).normalize(),sv=new V3(-dir.z,0,dir.x),n=Math.max(8,Math.round(dist/4)),arc=Math.min(7,dist*.08);let prev=null;
+  const d=new V3().subVectors(b,a),dist=Math.hypot(d.x,d.z),dir=new V3(d.x,0,d.z).normalize(),sv=new V3(-dir.z,0,dir.x),n=Math.max(10,Math.round(dist/3.5)),arc=Math.min(15,dist*.14);let prev=null;
+  for(const k of[0,n])for(const e of[-1,1]){const t=k/n,p=new V3(a.x+d.x*t+sv.x*1.75*e,a.y+d.y*t,a.z+d.z*t+sv.z*1.75*e);B.wood.box(p.x,p.y+1,p.z,.42,2.2,.42,RED);B.flat.at(ico0,p.x,p.y+2.35,p.z,.36,.5,.36,GIBO,0,R(0,3))}
   for(let k=0;k<=n;k++){const t=k/n,p=new V3(a.x+d.x*t,a.y+d.y*t+Math.sin(t*Math.PI)*arc-.2,a.z+d.z*t);
     if(prev){const mid=p.clone().add(prev).multiplyScalar(.5),sd=p.clone().sub(prev),L=sd.length(),q=alongQ(sd.normalize());
       B.wood.box(mid.x,mid.y,mid.z,3.4,.45,L+.1,RED,q);
@@ -1253,6 +1328,9 @@ function skyBridge(B,a,b){
   if(chance(.5)){const h=a.y+5.5;lanternRow(B,a.x,h,a.z,b.x,b.y+5.5,b.z,3,1.4,RI(0,1))}
 }
 
+// family palettes of the village district: plaster or timber walls, one roof colour family each
+const VROOF=[['#68737f','#5e6a77','#737c88'],['#5c8477','#6a8a7a','#557a6c'],['#86684f','#7a5e4b','#8f7358'],['#6a7673','#626e69','#717685'],['#7d8a6a','#6f7d5e','#88936f']].map(a=>a.map(C));
+const VWALL=['#f4efe5','#f0e9dc','#f6f2ea','#ece4d4','#f2ece0'].map(C),MOSS=C('#8fae7a'),ROCK=['#bdb6a5','#b2ad9e','#c6bfae','#a9a596'].map(C),FALLS=C('#eef4f4');
 // shared static geometry: bridges, walkways, lantern ropes, far towers, world tree
 const S=newBufs();
 {
@@ -1271,7 +1349,7 @@ const S=newBufs();
   {let n=0;
    for(const L of links){if(L.ends.length<2)continue;const [a,b]=L.ends,dx=b.p.x-a.p.x,dz=b.p.z-a.p.z,dh=Math.hypot(dx,dz);if(dh<10)continue;
      let ok=true;const steps=Math.ceil(dh/3);
-     for(let k=1;k<steps&&ok;k++){const t=k/steps,al=t*dh;if(al<3||al>dh-3)continue;if(hitTest(lerp(a.p.x,b.p.x,t),lerp(a.p.y,b.p.y,t)+1.3,lerp(a.p.z,b.p.z,t),1.6))ok=false}
+     for(let k=1;k<steps&&ok;k++){const t=k/steps,al=t*dh;if(al<3||al>dh-3)continue;const ah=L.style==='arch'?Math.sin(t*Math.PI)*Math.min(15,dh*.14):0;if(hitTest(lerp(a.p.x,b.p.x,t),lerp(a.p.y,b.p.y,t)+1.3+ah,lerp(a.p.z,b.p.z,t),1.6)||ah>3&&hitTest(lerp(a.p.x,b.p.x,t),lerp(a.p.y,b.p.y,t)+3.5+ah,lerp(a.p.z,b.p.z,t),1.6))ok=false}
      if(!ok)continue;
      if(L.style==='arch')archBridge(S,a.p,b.p);else walkBridge(S,a.p,b.p);(window.__linkEnds=window.__linkEnds||[]).push([a,b,L.style]);
      const ux=dx/dh,uz=dz/dh,wd=L.style==='arch'?4.2:5;a.gaps.push(wd/Math.max(ux*a.nx+uz*a.nz,.45)+.9);b.gaps.push(wd/Math.max(-ux*b.nx-uz*b.nz,.45)+.9);a.n++;b.n++;n++}
@@ -1292,11 +1370,38 @@ const S=newBufs();
   // far silhouette towers, in three rings so the skyline is full in every direction; the further out, the taller and the coarser
   //   [count, inner radius, outer radius, min height, max height, min width, max width, storeys per facade panel]
   const placed=[];
+  // a distant hamlet: a stone pillar, a crown of tiny plastered houses and roofs, a tree on top
+  // a distant crag: the same rock grammar as the near hamlets, simplified. Stepped tiers, L-shaped shoulders, clusters of needles or a lone spire;
+  // tops flat or pointed; trees (none, one or a few, off-centre) on ledges; a few houses clinging to the cliffs, or none at all
+  function farHamlet(S,x,z,fs){
+    const blocks=[],H=R(80,330)*fs,r=R(14,30)*fs,sh=rand(),add=(bx,bz,rr,y0,h,peak)=>blocks.push({x:bx,z:bz,rx:rr*R(.7,1.3),rz:rr*R(.7,1.3),yaw:R(0,6.283),y0,y1:y0+h,tk:R(.55,.85),peak});
+    if(sh<.3){let y=0,rr=r;for(let k=RI(2,3);k>0;k--){const h=(H-y)*(k>1?R(.45,.65):1);add(R(-.2,.2)*r*(y?1:0),R(-.2,.2)*r*(y?1:0),rr,y,h,k===1&&chance(.45));y+=h-1;rr*=R(.5,.7)}}   // tiers
+    else if(sh<.58){add(0,0,r,0,H,chance(.4));for(let k=RI(1,2);k>0;k--){const aa=R(0,6.283),r2=r*R(.45,.75),d=(r+r2)*.6;add(Math.cos(aa)*d,Math.sin(aa)*d,r2,0,H*R(.3,.7),chance(.4))}}   // tall crag with shoulders
+    else if(sh<.8){for(let k=RI(3,5);k>0;k--){const aa=R(0,6.283),d=r*R(0,.9);add(Math.cos(aa)*d,Math.sin(aa)*d,r*R(.3,.5),0,H*R(.45,1),chance(.6))}}   // a cluster of needles
+    else add(0,0,r*R(.6,.9),0,H*R(.8,1.15),true);   // a lone spire
+    const homes=chance(.75)?RI(2,9):0;
+    for(const bk of blocks){const h=bk.y1-bk.y0;XF={c:Math.cos(bk.yaw),s:Math.sin(bk.yaw),x:x+bk.x,z:z+bk.z};
+      const rg=craggy(bk.peak?.15:bk.tk,h,bk.peak),rm=new THREE.Matrix4().compose(new V3(0,bk.y0,0),new THREE.Quaternion(),new V3(bk.rx,1,bk.rz));S.rock.geom(rg,rm,pick(ROCK));
+      if(!bk.peak){S.rock.at(new THREE.CylinderGeometry(1,1,1.2*fs,8,1),0,bk.y1+.2,0,bk.rx*bk.tk*.97,1,bk.rz*bk.tk*.97,MOSS,0,R(0,3));
+        for(let k=chance(.35)?0:RI(1,3);k>0;k--){const aa=R(0,6.283),rr=rockRy(bk,aa,bk.y1)*R(.15,.7);wSprite(SPRS.trees,x+bk.x+Math.cos(aa)*rr,bk.y1,z+bk.z+Math.sin(aa)*rr,R(14,34)*fs,treeCell(chance(.25)?PINKS:chance(.1)?AUTUMN:GREENS),0,chance(.5)?1:-1)}
+        for(let k=RI(2,4);k>0;k--){const aa=R(0,6.283),rr=rockRy(bk,aa,bk.y1)*.95;wSprite(SPRS.trees,x+bk.x+Math.cos(aa)*rr,bk.y1-.5,z+bk.z+Math.sin(aa)*rr,R(8,18)*fs,42,.85,chance(.5)?1:-1)}}
+      else if(chance(.3))wSprite(SPRS.trees,x+bk.x,bk.y1-2*fs,z+bk.z,R(10,20)*fs,treeCell(GREENS),0,1);
+      {const XF0=XF;XF=null;cliffTufts(rockSurf(rg,rm,x+bk.x,z+bk.z,bk),x+bk.x,z+bk.z,bk,Math.round(h*(bk.rx+bk.rz)*(1+bk.tk)*.8/(260*fs*fs)),R(6,10)*fs);XF=XF0}   // green tufts on the faces
+    }
+    XF=null;
+    for(let n=homes;n>0;n--){const bk=pick(blocks);if(bk.rx<6*fs)continue;const h=bk.y1-bk.y0,y=bk.y0+h*R(.35,.92),aa=R(0,6.283),w=R(5,8)*fs,hh=R(5,8)*fs,rp=rockRy(bk,aa,y)*.85+w*.45;
+      XF={c:Math.cos(aa),s:Math.sin(aa),x:x+bk.x,z:z+bk.z};
+      S.plas.box(rp,y+hh/2,0,w,hh,w,pick(VWALL));roof(S.roof,rp,y+hh-.3,0,.3,.3,w+3*fs,w+3*fs,3*fs,pick(pick(VROOF)),fs,2);S.wood.box(rp+.3*fs,y-.3,0,w+2*fs,.6*fs,w+1.5*fs,PLANK);
+      const q=new THREE.Quaternion().setFromUnitVectors(UP,new V3(1,1,0).normalize());S.wood.box(rp-w*.3,y-w*.35,0,.6*fs,w*1.1,.6*fs,DARK,q)}
+    XF=null}
   for(const [cnt,r0,r1,h0,h1,w0,w1,fs] of[[140,900,2600,220,950,22,46,1],[130,2600,4300,380,1300,32,64,2],[90,4300,6200,600,1700,48,88,3]]){
     let made=0,tries=0;
     while(made<cnt&&tries++<cnt*30){
       const a=R(0,6.283),r=R(r0,r1),x=Math.cos(a)*r,z=Math.sin(a)*r;
       if(Math.hypot(x+1500,z+1500)<760)continue;   // leave room round the world tree
+      let da=Math.abs(Math.atan2(z,x)-Math.atan2(-1500,-1500));da=Math.min(da,6.283-da);
+      if(Math.hypot(x,z)<2050&&da<.95)continue;   // and for the hamlets on the way to it
+      if(da<1.2){if(placed.some(p=>Math.hypot(p[0]-x,p[1]-z)<p[2]+w1*.9))continue;placed.push([x,z,w1*.6]);made++;farHamlet(S,x,z,fs);continue}   // beyond them, the far hamlets
       if(placed.some(p=>Math.hypot(p[0]-x,p[1]-z)<p[2]+w1*.9))continue;
       let w=R(w0,w1),y=0;const H=R(h0,h1),rc=pick(ROOFS),step=7*fs;placed.push([x,z,w]);made++;
       const yaw=R(0,6.283);XF={c:Math.cos(yaw),s:Math.sin(yaw),x,z};   // each one at its own angle, built around its own centre
@@ -1359,6 +1464,285 @@ const TREE=new V3(-1500,0,-1500),toriiPos=new V3();
   for(const e of[-1,1])lantern(S,tx0+sv.x*9*e,py+3,tz0+sv.z*9*e,2.2,LCREAM);
   toriiPos.set(tx0,py+7,tz0);
 }
+
+/* ---------- the village district: toward the world tree the city thins into hamlets grown on magic-wood skeletons ----------
+   Commercial core (unchanged) -> the town -> a band where slim towers and hamlets mix -> hamlets only, on rock pillars, up to the tree.
+   A hamlet is grown, not stacked: a trunk of three timbers spiralling round each other, branches at uneven heights and angles,
+   a small deck at the end of each branch, and on each deck one to three one-room houses that share the family's walls and roofs;
+   later additions perch on top with their own roofs. Ladders join the decks, rope bridges join neighbouring hamlets. */
+const RES_A=Math.atan2(TREE.z,TREE.x),sstep=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t)};
+const angD=(a,b)=>{let d=a-b;while(d>Math.PI)d-=6.2832;while(d<-Math.PI)d+=6.2832;return d};
+function resZone(x,z){const r=Math.hypot(x,z),da=Math.abs(angD(Math.atan2(z,x),RES_A));return{r,da,inS:da<.78&&r>840&&r<1950,zr:sstep(880,1200,r)}}
+const villages=[],trans=[],vNames=[];
+{const pre=['朝露','山吹','苔','鈴蘭','野菊','小梅','笹','蛍','霞','木漏日','若葉','栗','柚','茜','露草','百合','瑠璃','杉','白樺','楢','椿','撫子','雲雀','桐','芒','萌黄','藍','鶯','山茶花','石蕗','綾','穂波','月草','木蓮'],suf=['里','坂','谷','村','丘','庵','ヶ原'];
+ while(vNames.length<64){const n=pick(pre)+pick(suf);if(!vNames.includes(n)&&!towerNames.includes(n))vNames.push(n)}}
+// family palettes: plaster or timber walls, one roof colour family each
+const shedRoof=(B,cx,y,cz,w,d,h,col,fs)=>{const [nx,nz]=NRM[fs],tx=nz,tz=-nx,hn=(fs<2?w:d)/2,ht=(fs<2?d:w)/2,ov=1.1,Pp=(o,a,yy)=>[cx+nx*o+tx*a,yy,cz+nz*o+tz*a],rep=Math.max(1,Math.round(ht/1.3));
+  B.roof.quad(Pp(hn+ov,-ht-ov,y),Pp(hn+ov,ht+ov,y),Pp(-hn-.4,ht+ov,y+h),Pp(-hn-.4,-ht-ov,y+h),col,0,1,rep,0);
+  for(const e of[-1,1])B.plas.quad(Pp(hn,e*ht,y),Pp(-hn,e*ht,y),Pp(-hn,e*ht,y+h*.9),Pp(-hn,e*ht,y+h*.9),VWALL[0]);
+  B.plas.quad(Pp(-hn,-ht,y),Pp(-hn,ht,y),Pp(-hn,ht,y+h*.9),Pp(-hn,-ht,y+h*.9),VWALL[0]);
+  const rb=Pp(-hn-.3,0,y+h+.1);B.wood.box(rb[0],rb[1],rb[2],fs<2?.4:2*ht+2*ov,.3,fs<2?2*ht+2*ov:.4,DARK)};
+// one dwelling: a room or two on top of each other, half-timbered plaster (or timber) with painted windows and a door on the front side fs
+function vHouse(B,V,hx,y,hz,w,d,st,fs,fam,shop,door){
+  const D=B.D,SH=6.2,h=st*SH,plas=fam.plas&&!chance(.12),wc=plas?pick(VWALL):pick(WOODS),rc=chance(.8)?pick(fam.roof):pick(pick(VROOF));
+  if(plas)B.plas.box(hx,y+h/2,hz,w,h,d,wc);else B.wood.box(hx,y+h/2,hz,w,h,d,wc);addCol(hx,y+h/2,hz,w,h,d);
+  for(const a of[-1,1])for(const b of[-1,1])B.wood.box(hx+a*w/2,y+h/2,hz+b*d/2,.42,h,.42,DARK);
+  for(let f=0;f<=st;f++){const yy=y+f*SH+(f?-.15:.2);B.wood.box(hx,yy,hz,w+.25,.34,d+.25,DARK)}
+  if(plas)for(let f=0;f<st;f++)B.wood.box(hx,y+f*SH+SH*.62,hz,w+.12,.18,d+.12,DARK);   // nuki: the rail across the plaster
+  let doorAt=null;
+  for(let f=0;f<st;f++)for(let side=0;side<4;side++){const len=side<2?d:w,dist=(side<2?w:d)/2,fy=y+f*SH;
+    if(f===0&&side===fs){const dw=Math.min(len-1,5.4),dh=dw/1.5,sa=R(-.2,.2)*(len-dw),u=facUV(shop?HSHOP():HDOOR());
+      panel(B.fac,hx,hz,side,dist+.06,sa,dw,fy+.38,dh,chance(.8)?LITC:UNLIT,u[0],u[1],u[2],u[3]);doorAt={side,sa,dist,fy};
+      B.roof.quad(...(()=>{const [nx,nz]=NRM[side],tx=nz,tz=-nx,Q=(o,a,yy)=>[hx+nx*o+tx*a,yy,hz+nz*o+tz*a];return[Q(dist+1.6,sa-dw/2-.5,fy+dh+.9),Q(dist+1.6,sa+dw/2+.5,fy+dh+.9),Q(dist,sa+dw/2+.5,fy+dh+1.7),Q(dist,sa-dw/2-.5,fy+dh+1.7)]})(),rc,0,0,Math.round(dw/2),1);
+      continue}
+    if(!chance(f?.8:.7))continue;
+    const ww=Math.min(len-1.4,4.2),wh=ww/1.5,sa=R(-.25,.25)*(len-ww),u=facUV(HWIN());
+    panel(B.fac,hx,hz,side,dist+.06,sa,ww,fy+1.5,wh,chance(.7)?LITC:UNLIT,u[0],u[1],u[2],u[3]);
+    if(chance(.3)){const [nx,nz]=NRM[side],tx=nz,tz=-nx,q=[hx+nx*(dist+.45)+tx*sa,hz+nz*(dist+.45)+tz*sa];   // flower box under the window
+      D.wood.box(q[0],fy+1.35,q[1],side<2?.6:ww-.4,.4,side<2?ww-.4:.6,DARK);for(let k=0;k<3;k++)addSprite(SPRS.trees,q[0]+tx*R(-1.3,1.3),fy+1.45,q[1]+tz*R(-1.3,1.3),R(1,1.4),POTC(),0,chance(.5)?1:-1)}
+    if(chance(.2))vine(D,hx,hz,side,dist+.1,R(-.4,.4)*len,fy+.3,R(3,5),false)}
+  if(st>1&&chance(.5))roof(B.roof,hx,y+SH-.3,hz,w,d,w+2.6,d+2.6,1.1,rc,.6,2);   // a little pent roof between the floors
+  const rt=rand(),top=y+h;
+  if(rt<.45)roofGable(B,hx,top-.25,hz,w,d,R(2.6,3.6),rc,1.6);
+  else if(rt<.72)roof(B.roof,hx,top-.3,hz,Math.max(.3,w-d),Math.max(.3,d-w),w+3.2,d+3.2,R(2.6,3.4),rc,1,3);
+  else shedRoof(B,hx,top-.1,hz,w,d,R(1.8,2.6),rc,fs);
+  if(chance(.3))for(let k=RI(2,4);k>0;k--){const a=R(-.4,.4),b=R(-.4,.4);potPlant(hx+a*w,top,hz+b*d,R(.7,1))}   // pots on the roof
+  if(doorAt){const [nx,nz]=NRM[doorAt.side],tx=nz,tz=-nx,o=doorAt.dist+1,a=doorAt.sa+R(2.4,3.2)*(chance(.5)?1:-1),q=[hx+nx*o+tx*a,hz+nz*o+tz*a];
+    if(chance(.5)){D.flat.box(q[0],y+.85,q[1],.45,.9,.45,STRAW);D.wood.box(q[0]-nx*.3,y+2.1,q[1]-nz*.3,.1,2.3,.1,STICK)}   // a broom by the door
+    else potPlant(q[0],y+.4,q[1],R(.9,1.3))
+    if(chance(.35+(1-V.zr)*.4)){const lq=[hx+nx*(doorAt.dist+.5)+tx*(doorAt.sa+3),hz+nz*(doorAt.dist+.5)+tz*(doorAt.sa+3)];lantern(D,lq[0],y+4.4,lq[1],.75,shop?LRED:LCREAM,shop?0:2)}
+    if(door){const wp=xfP(hx+nx*(doorAt.dist+3.5)+tx*doorAt.sa,hz+nz*(doorAt.dist+3.5)+tz*doorAt.sa),wn=xfD(nx,nz);door.push({pos:new V3(wp[0],y+2.6,wp[1]),T:V,floor:Math.round(y/7)+1,nx:wn[0],nz:wn[1]})}}
+  return top+(rt<.72?3:2);
+}
+// rail along one edge of a deck, with an opening in the middle where a bridge lands
+function vRail(B,P0,P1,y,gap){const L=Math.hypot(P1[0]-P0[0],P1[1]-P0[1]),ux=(P1[0]-P0[0])/L,uz=(P1[1]-P0[1])/L,runs=gap?[[0,L/2-gap/2],[L/2+gap/2,L]]:[[0,L]];
+  for(const [a,b] of runs){if(b-a<.3)continue;const m=[P0[0]+ux*(a+b)/2,P0[1]+uz*(a+b)/2],l=b-a,X=Math.abs(ux)>.5;
+    B.wood.box(m[0],y+1.5,m[1],X?l:.2,.2,X?.2:l,DARK);B.wood.box(m[0],y+.9,m[1],X?l:.13,.13,X?.13:l,DARK);
+    const n=Math.max(2,Math.round(l/3)+1);for(let k=0;k<n;k++){const t=a+l*k/(n-1);B.wood.box(P0[0]+ux*t,y+.95,P0[1]+uz*t,.26,1.5,.26,DARK)}}}
+// plan a hamlet: trunk line and the decks (positions only), so bridges can be chosen before anything is built
+// radius of a rock block toward angle a (relative to the hamlet), at height y (it tapers toward the top)
+function craggy(tk,h,peak){const g=new THREE.CylinderGeometry(tk,1,h,8,6);g.translate(0,h/2,0);const P=g.attributes.position;
+  const hs=(x,y,z,k)=>{const v=Math.sin(x*127.1+y*311.7+z*74.7+k*19.3)*43758.5453;return v-Math.floor(v)};
+  for(let i=0;i<P.count;i++){const x=P.getX(i),y=P.getY(i),z=P.getZ(i),r=Math.hypot(x,z),qx=Math.round(x*40),qy=Math.round(y*4),qz=Math.round(z*40);if(r<.01)continue;
+    const top=y>h-.01,f=1+(hs(qx,qy,qz,1)-.5)*.42+Math.sin(y*.21+hs(0,qy,0,2)*6)*.08;P.setX(i,x*f);P.setZ(i,z*f);
+    if(!top&&y>.01)P.setY(i,y+(hs(qx,qy,qz,3)-.5)*Math.min(5,h*.05));else if(top&&peak)P.setY(i,y+(hs(qx,qy,qz,4)-.5)*3)}
+  return g}
+function rockSurf(rg,rm,cx,cz,b){const me=new THREE.Mesh(rg,_fMat);me.position.set(cx,0,cz);me.rotation.y=-b.yaw;me.updateMatrix();me.matrix.multiply(rm);me.matrixWorld.copy(me.matrix);
+  const Rr=(b.rx+b.rz)*2,o=new V3(),dv=new V3();
+  return (a,y)=>{const ca=Math.cos(a),sa=Math.sin(a);_fRay.set(o.set(cx+ca*Rr,y,cz+sa*Rr),dv.set(-ca,0,-sa));const hit=_fRay.intersectObject(me)[0];return hit?Rr-hit.distance:rockRy(b,a,y)}}
+// green clinging to a cliff: small clusters of tufts sitting on the real face, mostly on the ledges of the strata
+function cliffTufts(surf,cx,cz,b,n,size){const h=b.y1-b.y0;
+  for(let k=0;k<n;k++){const a=R(0,6.283),y=b.y0+h*(.06+.9*Math.pow(rand(),.8));
+    for(let j=chance(.7)?RI(2,4):1;j>0;j--){const aj=a+R(-.08,.08)*size/4,yj=Math.min(b.y1-1,y+R(-1.2,1.2)*size/4),r=surf(aj,yj)+size*.12;
+      wSprite(SPRS.trees,cx+Math.cos(aj)*r,yj,cz+Math.sin(aj)*r,size*R(.6,1.15),40+RI(0,2),.5,chance(.5)?1:-1)}}}
+function waterfall(buf,cx,cz,a,b,wd,rg,rm){
+  const ca=Math.cos(a),sa=Math.sin(a),tx=-sa,tz=ca,h=b.y1-b.y0,n=Math.max(6,Math.round(h/7));
+  // the rock is jittered, so find where its face really is by casting a ray in at each height
+  const sf=rockSurf(rg,rm,cx,cz,b),surf=y=>sf(a,y),rT=surf(b.y1-.5);
+  for(const [o,w,vs,lift] of[[0,wd,1/16,0],[R(-.25,.25)*wd,wd*.5,1/10,.35]]){   // a broad sheet and a narrower, faster one in front
+    const rows=[[rT-4,b.y1+.9+lift*.3,.55,1],[rT-.6,b.y1+.9+lift*.3,.85,1]];
+    for(let k=1;k<=n;k++){const t=k/n,y=b.y1-t*h,r=Math.max(rT+.6+lift+1.4*Math.sqrt(Math.min(1,t*4)),surf(Math.max(b.y0+.5,y))+.8+lift);
+      rows.push([r,y,.85*clamp((1-t)/.22,0,1),1+1.3*t*t*t])}
+    const base=buf.v;let v=0;
+    rows.forEach(([r,y,al,sp],i)=>{if(i)v+=Math.hypot(r-rows[i-1][0],y-rows[i-1][1])*vs;const hw=w/2*sp;
+      for(const sd of[-1,1]){const ss=o+sd*hw;buf.p.push(cx+ca*r+tx*ss,y,cz+sa*r+tz*ss);buf.n.push(ca,0,sa);buf.c.push(al,al,al);buf.u.push(sd<0?0:1,v)}});
+    for(let i=0;i<rows.length-1;i++){const q=base+i*2;buf.i.push(q,q+1,q+3,q,q+3,q+2)}
+    buf.v+=rows.length*2}}
+function rockRy(b,a,y){const c=Math.cos(a-b.yaw),sn=Math.sin(a-b.yaw),t=clamp((y-b.y0)/Math.max(1,b.y1-b.y0),0,1);return lerp(1,b.peak?.15:b.tk,t)/Math.sqrt(c*c/(b.rx*b.rx)+sn*sn/(b.rz*b.rz))}
+function planVillage(V){
+  V.spread=rand()*rand()*1.4;V.rocks=[];V.nodes=[];
+  const crag=chance(V.zr>.6?.8:.4);V.crag=crag;
+  const addRock=(x,z,r,y0,h,peak)=>{const b={x,z,rx:r*R(.75,1.25),rz:r*R(.75,1.25),yaw:R(0,6.283),y0,y1:y0+h,tk:R(.62,.88),peak};V.rocks.push(b);return b};
+  if(crag){const H=V.zr>.6?R(45,175):R(18,60),r=R(15,24),sh=rand();
+    if(sh<.32){const a=addRock(0,0,r,0,H*R(.45,.7),false);addRock(R(-.22,.22)*r,R(-.22,.22)*r,r*R(.42,.62),a.y1-1,H-a.y1+1,chance(.4))}   // stepped: a broad block, a narrower one on top
+    else if(sh<.66){addRock(0,0,r,0,H,chance(.35));const aa=R(0,6.283),r2=r*R(.55,.8),d=(r+r2)*.6;addRock(Math.cos(aa)*d,Math.sin(aa)*d,r2,0,H*R(.3,.65),chance(.3))}   // L-shaped: a tall crag and a lower shoulder
+    else addRock(0,0,r*R(.8,1),0,H,chance(.6));   // one crag, often coming to a point
+    for(let k=RI(1,3);k>0;k--){const aa=R(0,6.283),d=r*R(.95,1.35);addRock(Math.cos(aa)*d,Math.sin(aa)*d,r*R(.22,.38),0,H*R(.1,.3),chance(.5))}}   // boulders round its foot
+  const rockTop=V.rocks.reduce((m,b)=>Math.max(m,b.y1),0),flat=V.rocks.filter(b=>!b.peak&&b.rx>8).sort((a,b)=>b.y1-a.y1);
+  V.hasTrunk=!crag||(flat.length>0&&chance(.5));
+  let bx=0,bz=0,yb=0;V.trunkRock=null;
+  if(crag&&V.hasTrunk){const t=flat[0];bx=t.x;bz=t.z;yb=t.y1;V.trunkRock=t;V.h=yb+R(40,190)}
+  else if(crag)V.h=rockTop;
+  V.trunkBase=yb;V.rockR=V.rocks.reduce((m,b)=>Math.max(m,Math.hypot(b.x,b.z)+Math.max(b.rx,b.rz)),12);
+  const pts=[];let x=bx,z=bz;for(let y=yb;y<=V.h+24;y+=24){pts.push([x,y,z]);x=clamp(x+R(-2.6,2.6),bx-6,bx+6);z=clamp(z+R(-2.6,2.6),bz-6,bz+6)}
+  while(pts.length<2)pts.push([x,pts.length?pts[pts.length-1][1]+24:yb,z]);V.tp=pts;
+  V.trunkAt=y=>{const i=clamp(Math.floor((y-yb)/24),0,pts.length-2),t=clamp((y-yb-i*24)/24,0,1);return[lerp(pts[i][0],pts[i+1][0],t),lerp(pts[i][2],pts[i+1][2],t)]};
+  // a deck may not overlap another deck at about its height, nor sit inside a rock other than the one it hangs on
+  const ctr=o=>[o.tx+Math.cos(o.a)*o.rc,o.tz+Math.sin(o.a)*o.rc];
+  const clash=o=>{const [cx,cz]=ctr(o),ro=Math.max(o.pw,o.pd)*.5;
+    if(V.nodes.some(q=>{if(Math.abs(q.y-o.y)>10.5)return false;const [qx,qz]=ctr(q);return Math.hypot(qx-cx,qz-cz)<Math.max(q.pw,q.pd)*.5+ro+.4}))return true;
+    for(const b of V.rocks){if(b===o.rock||o.y>b.y1+1||o.y+12<b.y0)continue;const dx=cx-b.x,dz=cz-b.z;if(Math.hypot(dx,dz)<rockRy(b,Math.atan2(dz,dx),o.y)+ro*.9)return true}
+    if(V.hasTrunk&&o.rock&&o.y+8>yb){const [tx,tz]=V.trunkAt(Math.max(o.y,yb));if(Math.hypot(cx-tx,cz-tz)<ro+3.2)return true}
+    return false};
+  // decks hung on the cliff faces, and houses standing on the flat ledges
+  for(const b of V.rocks){if(b.rx<7)continue;
+    for(let y=b.y0+R(4,9);y<b.y1-3;y+=R(6.5,11)){const n=chance(.45)?1:2;
+      for(let k=0;k<n;k++)for(let t=0;t<10;t++){const a=R(0,6.283),pd=R(7,10),pw=R(9,13),yy=y+R(-1.5,1.5),ri=rockRy(b,a,yy)*.84,o={a,y:yy,pd,pw,rc:ri+pd/2,rIn:ri,tx:b.x,tz:b.z,gap:false,V,cliff:true,rock:b};if(!clash(o)){V.nodes.push(o);break}}}
+    if(!b.peak&&b!==V.trunkRock)for(let k=RI(1,2);k>0;k--)for(let t=0;t<8;t++){const pd=R(7,9),pw=R(8,11),a=R(0,6.283),rr=R(0,Math.min(b.rx,b.rz)*.3),o={a,y:b.y1,pd,pw,rc:rr,rIn:0,tx:b.x,tz:b.z,gap:false,V,top:true,rock:b};
+      if(rr+Math.max(pd,pw)*.55>Math.min(b.rx,b.rz)*b.tk)continue;if(!clash(o)){V.nodes.push(o);break}}}
+  // decks on the branches of the skeleton
+  if(V.hasTrunk){let y=yb+R(4,9),lastA=R(0,6.283);
+    while(y<V.h-10){const n=rand()<.35?1:rand()<.7?2:3;
+      for(let k=0;k<n;k++){for(let t=0;t<14;t++){const a=t?R(0,6.283):lastA+R(1.3,3.2)*(chance(.5)?1:-1),pd=R(7.5,10.5),pw=R(9,14),rc=2.3+pd/2+(chance(.15+V.spread*.5)?R(0,4+V.spread*8):0),ny=y+(k?R(-2.5,2.5):0),[tx,tz]=V.trunkAt(ny);
+          const o={a,y:ny,pd,pw,rc,rIn:0,tx,tz,gap:false,V};if(clash(o))continue;V.nodes.push(o);lastA=a;
+          if(chance(.15+V.spread*.5)){   // a deck further out on the same branch, reached by a plank walk
+            const pd2=R(7,9.5),o2={a:a+R(-.18,.18),y:ny+R(-3,5),pd:pd2,pw:R(8,12),rc:rc+pd/2+R(2.5,6)+pd2/2,rIn:0,gap:false,V,parent:o};[o2.tx,o2.tz]=V.trunkAt(o2.y);if(!clash(o2))V.nodes.push(o2)}
+          break}}
+      y+=R(6.5,12)}}
+  V.top=V.h+14;
+}
+// the outer edge of a deck in world space, facing out from the trunk
+function nodeEdge(o){const V=o.V,c=Math.cos(V.yaw0+o.a),sn=Math.sin(V.yaw0+o.a),r=o.rc+o.pd/2;return{p:new V3(V.x+o.tx+c*r,o.y+.4,V.z+o.tz+sn*r),nx:c,nz:sn,o}}
+function buildVillage(V,B){
+  const D=B.D,fam=V.fam;let band=0;
+  // walks from inner decks out to the decks beyond them (world space)
+  for(const o of V.nodes)if(o.parent){const q=o.parent,A=V.yaw0+q.a,c=Math.cos(A),sn=Math.sin(A),A2=V.yaw0+o.a,c2=Math.cos(A2),s2=Math.sin(A2);
+    const a=new V3(V.x+q.tx+c*(q.rc+q.pd/2-.6),q.y+.4,V.z+q.tz+sn*(q.rc+q.pd/2-.6)),b=new V3(V.x+o.tx+c2*(o.rc-o.pd/2+.6),o.y+.4,V.z+o.tz+s2*(o.rc-o.pd/2+.6));
+    XF=null;const dv=b.clone().sub(a),L=dv.length(),m=a.clone().add(b).multiplyScalar(.5),qq=alongQ(dv.clone().normalize()),sv=new V3(-dv.z,0,dv.x).normalize();
+    B.wood.box(m.x,m.y-.2,m.z,2.2,.3,L,PLANK,qq);for(const e of[-1.05,1.05])B.wood.box(m.x+sv.x*e,m.y+1.1,m.z+sv.z*e,.12,.12,L,DARK,qq);addCol(m.x,m.y,m.z,2.5,1,2.5);
+    const s0=new V3(V.x+q.tx,Math.min(a.y,b.y)-7,V.z+q.tz),dv2=m.clone().sub(s0);B.wood.box((s0.x+m.x)/2,(s0.y+m.y)/2,(s0.z+m.z)/2,.6,dv2.length(),.6,DARK,new THREE.Quaternion().setFromUnitVectors(UP,dv2.normalize()));
+    o.walk=true}
+  // the rock it grows from: stepped or L-shaped crags, rough and leaning, mossy on their ledges, plants spilling down
+  for(const b of V.rocks){const h=b.y1-b.y0;XF={c:Math.cos(b.yaw),s:Math.sin(b.yaw),x:V.x+b.x,z:V.z+b.z};
+    const rg=craggy(b.peak?.15:b.tk,h,b.peak),rm=new THREE.Matrix4().compose(new V3(0,b.y0,0),new THREE.Quaternion(),new V3(b.rx,1,b.rz));B.rock.geom(rg,rm,pick(ROCK));
+    addCol(0,b.y0+h/2,0,b.rx*1.45,h,b.rz*1.45);
+    if(!b.peak){B.rock.at(new THREE.CylinderGeometry(1,1,1.2,9,1),0,b.y1+.15,0,b.rx*b.tk*.98,1,b.rz*b.tk*.98,MOSS,0,R(0,3));
+      for(let j=RI(3,7);j>0;j--){const a=R(0,6.283),rr=rockRy(b,a+b.yaw,b.y1)*.95;wSprite(SPRS.trees,V.x+b.x+Math.cos(a+b.yaw)*rr,b.y1-.6,V.z+b.z+Math.sin(a+b.yaw)*rr,R(6,12),chance(.5)?42:pick([40,41]),.85,chance(.5)?1:-1)}
+      if(b!==V.trunkRock&&chance(.5))wSprite(SPRS.trees,V.x+b.x+R(-.3,.3)*b.rx,b.y1+.6,V.z+b.z+R(-.3,.3)*b.rz,R(10,22),treeCell(chance(.3)?PINKS:GREENS),0,chance(.5)?1:-1)}
+    else wSprite(SPRS.trees,V.x+b.x,b.y1-1.5,V.z+b.z,R(8,16),treeCell(GREENS),0,chance(.5)?1:-1);
+    cliffTufts(rockSurf(rg,rm,V.x+b.x,V.z+b.z,b),V.x+b.x,V.z+b.z,b,Math.round(h*(b.rx+b.rz)*(1+b.tk)*.8/40),R(4,7));   // about one cluster per 40 square metres of face   // greenery on the cliff
+    if(h>40&&b.rx>9&&!b.peak&&chance(.45)){XF=null;waterfall(B.falls,V.x+b.x,V.z+b.z,R(0,6.283),b,R(2.5,5),rg,rm)}}
+  XF={c:1,s:0,x:V.x,z:V.z};
+  if(!V.crag){B.rock.at(new THREE.CylinderGeometry(5,7.5,3,8,1),0,1.5,0,1,1,1,pick(ROCK),0,R(0,3));addCol(0,1.5,0,10,3,10)}   // no rock: a stone footing
+  for(let k=0;k<RI(4,8);k++){const a=R(0,6.283),r=V.rockR*R(1.05,1.6);wSprite(SPRS.trees,V.x+Math.cos(a)*r,0,V.z+Math.sin(a)*r,R(9,18),treeCell(GREENS),0,chance(.5)?1:-1)}
+  const H=V.trunkBase;
+  // the trunk: three timbers twisting round the line, bound with bands and a shimenawa rope
+  const tp=V.hasTrunk?V.tp:[];XF={c:1,s:0,x:V.x,z:V.z};
+  for(let i=0;i<tp.length-1;i++){const [x0,y0,z0]=tp[i],[x1,y1,z1]=tp[i+1];if(y0>V.h)break;const yb=Math.max(y0,H),ye=Math.min(y1,V.h+2);if(ye<=yb)continue;
+    const fr=(yy)=>clamp((yy-y0)/24,0,1);
+    for(let k=0;k<3;k++){const th0=k*2.094+yb*.012,th1=k*2.094+ye*.012,rad=1.7,sz=lerp(2.1,1.25,yb/V.h);
+      const a=new V3(lerp(x0,x1,fr(yb))+Math.cos(th0)*rad,yb,lerp(z0,z1,fr(yb))+Math.sin(th0)*rad),b=new V3(lerp(x0,x1,fr(ye))+Math.cos(th1)*rad,ye,lerp(z0,z1,fr(ye))+Math.sin(th1)*rad),dv=b.clone().sub(a),L=dv.length();
+      B.wood.box((a.x+b.x)/2,(a.y+b.y)/2,(a.z+b.z)/2,sz,L+.3,sz,TRUNK,new THREE.Quaternion().setFromUnitVectors(UP,dv.normalize()))}
+    const [cx,cz]=V.trunkAt(ye);B.wood.box(cx,ye,cz,4.6,.55,4.6,DARK);addCol(lerp(x0,x1,.5),(yb+ye)/2,lerp(z0,z1,.5),5.2,ye-yb,5.2);
+    if(chance(.5))wSprite(SPRS.trees,V.x+cx+R(-3,3),R(yb,ye),V.z+cz+R(-3,3),R(9,15),40+RI(0,2),.5,chance(.5)?1:-1);   // greenery clinging to the skeleton
+    if(chance(.35)){const side=RI(0,3);vine(D,cx,cz,side,2.6,0,yb+R(0,8),R(5,9),false)}
+    if(yb>band+80){newBand(B);band=yb}}
+  if(V.hasTrunk){const [cx,cz]=V.trunkAt(H+6);B.flat.at(new THREE.TorusGeometry(2.9,.35,6,14),cx,H+6,cz,1,1,1,STRAW,Math.PI/2);
+   for(let k=0;k<6;k++){const a=k/6*6.283;B.cloth.quad([cx+Math.cos(a)*3.05,H+5.8,cz+Math.sin(a)*3.05],[cx+Math.cos(a+.25)*3.05,H+5.8,cz+Math.sin(a+.25)*3.05],[cx+Math.cos(a+.25)*3.05,H+4.4,cz+Math.sin(a+.25)*3.05],[cx+Math.cos(a)*3.05,H+4.4,cz+Math.sin(a)*3.05],WHITE,0,1,1,0)}}
+  // decks on branches, houses on decks
+  const doors=[];
+  for(const o of V.nodes){const A=V.yaw0+o.a,y=o.y,{pd,pw,rc}=o;
+    XF={c:Math.cos(A),s:Math.sin(A),x:V.x+o.tx,z:V.z+o.tz};
+    if(y>band+80){newBand(B);band=y}
+    const x0=rc-pd/2,x1=rc+pd/2;
+    B.wood.box(rc,y+.2,0,pd,.4,pw,PLANK);addCol(rc,y+.2,0,pd,.4,pw);
+    for(const e of[-.32,.32])B.wood.box(rc,y-.22,e*pw,pd+.6,.45,.45,DARK);
+    vRail(B,[x1,-pw/2],[x1,pw/2],y+.4,o.gap?3.4:0);vRail(B,[x0,pw/2],[x1,pw/2],y+.4,0);vRail(B,[x0,-pw/2],[x1,-pw/2],y+.4,0);
+    if(x0>2.6&&!o.parent&&!o.rock){const g=x0-2.2;B.wood.box(2.2+g/2,y+.2,0,g+.2,.4,2.6,PLANK)}
+    // the branch: a raking beam from the trunk out under the deck, and a lighter strut beside it
+    if(!o.top)for(const [zz,th,dy] of[[0,.95,R(6,10)],[R(-.35,.35)*pw,.6,R(4,7)]]){const a=new V3((o.rIn||0)*.8,y-dy,o.rock?zz:0),b=new V3(rc+pd*.2,y-.3,zz),dv=b.clone().sub(a),L=dv.length();
+      B.wood.box((a.x+b.x)/2,(a.y+b.y)/2,(a.z+b.z)/2,th,L,th,DARK,new THREE.Quaternion().setFromUnitVectors(UP,dv.normalize()))}
+    if(!o.top&&chance(.45))for(let k=RI(2,5);k>0;k--){const Lh=R(1.5,5.5);panel(D.cloth,rc,0,0,pd/2+.12,R(-.45,.45)*pw,R(.7,1.5),y+.1-Lh,Lh,pick(GREENS),0,1,1,0)}   // ivy hanging off the deck
+    // one to three houses along the back of the deck, doors facing out onto the strip of deck by the rail
+    const nh=pw>11.5&&chance(.5)?2:1,hs=[];let left=pw-.6;
+    for(let k=0;k<nh;k++){const w=Math.min(R(6.2,8.6),left-(nh-k-1)*5.6);left-=w;hs.push(w)}
+    let zc=-pw/2+.3;const dmax=pd-2.4,shopP=(1-V.zr)*.5+.06;let hy=y+.4;
+    for(const w of hs){const d=Math.min(R(5.6,7.6),dmax),hx=x0+.25+d/2,hz=zc+w/2;zc+=w+.1;
+      const st=chance(.3)?2:1,top=vHouse(B,V,hx,hy,hz,d,w,st,0,fam,chance(shopP),doors.length<3&&y>24&&chance(.5)?doors:null);
+      if(chance(.3)){   // a later addition perched on top, offset, with its own roof
+        const w2=w*R(.55,.8),d2=d*R(.6,.85),ox=R(-.35,.35)*d,oz=(chance(.5)?1:-1)*R(.2,.45)*w,by=top+R(.4,1.6);
+        for(const a of[-1,1])for(const b of[-1,1])B.wood.box(hx+ox+a*(d2/2-.2),(by+top-3)/2,hz+oz+b*(w2/2-.2),.4,by-top+3,.4,DARK);
+        B.wood.box(hx+ox,by-.15,hz+oz,d2+.8,.3,w2+.8,PLANK);vHouse(B,V,hx+ox,by,hz+oz,d2,w2,1,RI(0,3),fam,false,null)}}
+    if(y>10){const sp=xfP(x1-1.4,R(-.25,.25)*pw);jobSpots.push({pos:new V3(sp[0],y+3,sp[1]),T:V,floor:Math.round(y/7)+1,zone:2})}
+    // the strip by the rail: things of daily life, a laundry line, brooms, a tree now and then
+    furnish(D,x1-2,-pw/2+.6,x1-.5,pw/2-.6,y+.4,RI(1,3),false);
+    if(chance(.35)){for(const e of[-1,1])D.wood.box(x1-.35,y+2.4,e*(pw/2-.4),.14,4,.14,DARK);D.wood.box(x1-.35,y+4.3,0,.06,.06,pw-.8,DARK);
+      for(let a=-pw/2+1;a<pw/2-1;a+=R(1.2,1.9))panel(D.cloth,x1-.35,0,0,0,a,R(.8,1.2),y+2.6,1.6,pick([WHITE,WHITE,INDIGO,C('#c9d6e6'),C('#e3b5a8'),C('#cfe0c4')]),0,1,1,0)}
+    if(chance(.3))for(let k=RI(2,3);k>0;k--){const zz=R(-.4,.4)*pw;D.flat.box(x1-1,y+1.25,zz,.45,.9,.45,STRAW);D.wood.box(x1-.75,y+2.6,zz,.1,2.3,.1,STICK,new THREE.Quaternion().setFromUnitVectors(UP,new V3(.28,1,0).normalize()))}   // brooms parked by the rail
+    if(chance(.16))blobTree(D,x1-1.6,y+.4,R(-.3,.3)*pw,R(1.4,2),pick([PINKS,GREENS,GREENS,AUTUMN]));
+    if(chance(.5))person(D,x1-1.2,y+.4,R(-.4,.4)*pw);
+    if(chance((1-V.zr)*.55))lanternRow(D,x1-.2,y+4.4,-pw/2+.3,x1-.2,y+4.4,pw/2-.3,2.6,.4,RI(0,1));
+    if(V.zr<.65&&chance(.25))banner(D,rc,0,0,pd/2+.15,R(-.3,.3)*pw,2,y-7.5,7.4,RI(0,GENERAL.length-1));
+  }
+  // the crown: a tree growing out of the top, or a tiny shrine
+  if(!V.hasTrunk){const t=V.rocks.slice().sort((a,b)=>b.y1-a.y1)[0];if(t){if(t.peak)wSprite(SPRS.trees,V.x+t.x,t.y1-2,V.z+t.z,R(16,28),treeCell(chance(.35)?PINKS:GREENS),0,1);}}
+  else{const [cx,cz]=V.trunkAt(V.h);XF={c:1,s:0,x:V.x+cx,z:V.z+cz};const y=V.h;
+   B.wood.box(0,y+.2,0,11,.4,11,PLANK);addCol(0,y+.2,0,11,.4,11);for(const e of[-1,1]){vRail(B,[-5.5,e*5.5],[5.5,e*5.5],y+.4,0);vRail(B,[e*5.5,-5.5],[e*5.5,5.5],y+.4,0)}
+   if(chance(.6)){wSprite(SPRS.trees,V.x+cx,y+.4,V.z+cz,R(24,40),treeCell(chance(.35)?PINKS:GREENS),0,chance(.5)?1:-1);for(let k=0;k<3;k++)wSprite(SPRS.trees,V.x+cx+R(-4,4),y+R(10,20),V.z+cz+R(-4,4),R(14,22),40+RI(0,2),.5,chance(.5)?1:-1)}
+   else{B.wood.box(0,y+3,0,4.6,5,4.6,pick(WOODS));irimoya(B,0,y+5.2,0,4.6,4.6,4.2,pick(fam.roof));const u=facUV(40);panel(B.fac,0,0,0,2.36,0,3.6,y+.6,2.4,LITC,u[0],u[1],u[2],u[3]);lantern(D,3,y+3,2.4,.8,LCREAM,2);lantern(D,3,y+3,-2.4,.8,LCREAM,2)}
+   furnish(D,-4,-4,4,4,y+.4,RI(2,4),false)}
+  // ladders between decks that sit close above one another
+  XF=null;const ns=V.nodes.slice().sort((a,b)=>a.y-b.y);
+  for(let i=0;i<ns.length;i++)for(let j=i+1;j<Math.min(ns.length,i+4);j++){const a=ns[i],b=ns[j],dy=b.y-a.y;if(dy<4||dy>17)continue;
+    const pa=deckPt(a,b),pb=deckPt(b,a),h=Math.hypot(pb.x-pa.x,pb.z-pa.z);if(h>12)continue;
+    stairRun(B,pa,pb);break}
+  // laundry lines strung across the gap between neighbouring decks, sagging under the washing
+  {let nl=0;for(let i=0;i<ns.length&&nl<5;i++)for(let j=i+1;j<ns.length&&nl<5;j++){const a=ns[i],b=ns[j];if(Math.abs(b.y-a.y)>7||!chance(.7))continue;
+    const pa=deckPt(a,b),pb=deckPt(b,a),h=Math.hypot(pb.x-pa.x,pb.z-pa.z);if(h<5||h>26)continue;
+    {let ok=true;const st=Math.ceil(h/1.5);for(let k=2;k<st-1&&ok;k++){const t=k/st,yy=lerp(a.y,b.y,t)+4.6-Math.sin(t*Math.PI)*h*.08;if(hitTest(lerp(pa.x,pb.x,t),yy-.6,lerp(pa.z,pb.z,t),.9)||hitTest(lerp(pa.x,pb.x,t),yy-2.4,lerp(pa.z,pb.z,t),.9))ok=false;
+       for(const r of V.rocks){const rx=lerp(pa.x,pb.x,t)-V.x-r.x,rz=lerp(pa.z,pb.z,t)-V.z-r.z;if(yy>r.y0&&yy-2.4<r.y1&&Math.hypot(rx,rz)<rockRy(r,Math.atan2(rz,rx),Math.min(yy,r.y1))*1.3+1)ok=false}}
+     if(!ok)continue}
+    nl++;(window.__laundry=window.__laundry||[]).push([pa.x,a.y,pa.z,pb.x,b.y,pb.z]);
+    const ya=a.y+4.6,yb=b.y+4.6,n=Math.max(4,Math.round(h/1.6)),sag=h*.08;let prev=null;
+    for(const [p,y] of[[pa,a.y],[pb,b.y]])D.wood.box(p.x,y+2.5,p.z,.14,4.4,.14,DARK);
+    for(let k=0;k<=n;k++){const t=k/n,q=new V3(lerp(pa.x,pb.x,t),lerp(ya,yb,t)-Math.sin(t*Math.PI)*sag,lerp(pa.z,pb.z,t));if(prev){ropeP.push(prev.x,prev.y,prev.z,q.x,q.y,q.z);
+      if(chance(.75)){const kind=rand(),L=kind<.3?R(2,2.8):kind<.7?R(1.1,1.7):R(.6,.9),i0=R(.05,.3),i1=1-(kind<.3?R(.35,.6):R(.05,.3)),c=pick([WHITE,WHITE,INDIGO,C('#c9d6e6'),C('#e3b5a8'),C('#cfe0c4'),C('#d99a8a'),C('#e8d9b0')]);   // a long towel, a shirt, a small cloth
+        const u=new V3().lerpVectors(prev,q,i0),v=new V3().lerpVectors(prev,q,i1);D.cloth.quad([u.x,u.y-L,u.z],[v.x,v.y-L*R(.9,1.05),v.z],[v.x,v.y,v.z],[u.x,u.y,u.z],c,0,1,1,0)}}prev=q}}}
+  allDoors.push(...doors);
+}
+// the point on deck o nearest to deck t (pulled in from the edges), world space
+function deckPt(o,t){const V=o.V,A=V.yaw0+o.a,c=Math.cos(A),sn=Math.sin(A),Ta=V.yaw0+t.a,tc=Math.cos(Ta)*(t.rc)+t.tx,ts=Math.sin(Ta)*(t.rc)+t.tz;
+  const lx=c*(tc-o.tx)+sn*(ts-o.tz),lz=-sn*(tc-o.tx)+c*(ts-o.tz),x=clamp(lx,o.rc-o.pd/2+.9,o.rc+o.pd/2-.9),z=clamp(lz,-o.pw/2+.9,o.pw/2-.9);
+  return new V3(V.x+o.tx+c*x-sn*z,o.y+.4,V.z+o.tz+sn*x+c*z)}
+// a steep timber stair (or a ladder when it is nearly vertical) from a up to b
+function stairRun(B,a,b){const dv=b.clone().sub(a),L=dv.length(),hz=Math.hypot(dv.x,dv.z),q=alongQ(dv.clone().normalize()),m=a.clone().add(b).multiplyScalar(.5),sv=hz>.5?new V3(-dv.z/hz,0,dv.x/hz):new V3(1,0,0);
+  if(hz<2.5){for(const e of[-.45,.45])B.wood.box(a.x+sv.x*e,(a.y+b.y)/2+.6,a.z+sv.z*e,.14,b.y-a.y+1.4,.14,DARK);for(let y=a.y+.6;y<b.y+.4;y+=.75)B.wood.box(a.x,y,a.z,Math.abs(sv.x)>.5?1:.1,.1,Math.abs(sv.x)>.5?.1:1,DARK);return}
+  for(const e of[-.7,.7]){B.wood.box(m.x+sv.x*e,m.y-.1,m.z+sv.z*e,.16,.4,L,DARK,q);B.wood.box(m.x+sv.x*e,m.y+1.2,m.z+sv.z*e,.1,.1,L,DARK,q)}
+  const n=Math.max(4,Math.round((b.y-a.y)/.6));for(let i=1;i<n;i++){const p=a.clone().lerp(b,i/n);B.wood.box(p.x,p.y,p.z,Math.abs(sv.x)>.5?1.4:.35,.12,Math.abs(sv.x)>.5?.35:1.4,PLANK)}}
+// a sagging plank-and-rope bridge between two hamlets
+function ropeBridge(B,a,b){const d=b.clone().sub(a),hz=Math.hypot(d.x,d.z),sv=new V3(-d.z/hz,0,d.x/hz),n=Math.max(6,Math.round(hz/2.2)),sag=Math.min(9,hz*.07);
+  const at=t=>new V3(a.x+d.x*t,a.y+d.y*t-Math.sin(t*Math.PI)*sag,a.z+d.z*t);
+  for(let i=0;i<n;i++){const p0=at(i/n),p1=at((i+1)/n),m=p0.clone().add(p1).multiplyScalar(.5),sd=p1.clone().sub(p0);B.wood.box(m.x,m.y-.1,m.z,2.2,.18,sd.length()*.82,PLANK,alongQ(sd.normalize()));if(i%3===0)addCol(m.x,m.y,m.z,3,1,3)}
+  for(const e of[-1.15,1.15]){let prev=null;for(let i=0;i<=n;i++){const p=at(i/n).addScaledVector(sv,e);p.y+=1.3+Math.sin(i/n*Math.PI)*sag*.15;if(prev)ropeP.push(prev.x,prev.y,prev.z,p.x,p.y,p.z);
+      const fl=at(i/n).addScaledVector(sv,e);if(i%2===0)ropeP.push(p.x,p.y,p.z,fl.x,fl.y,fl.z);prev=p}}
+  for(const p of[a,b])for(const e of[-1.3,1.3])B.wood.box(p.x+sv.x*e,p.y+1.1,p.z+sv.z*e,.3,2.2,.3,DARK);
+  if(chance(.35))for(let t=.2;t<.85;t+=.3){const p=at(t);lantern(B,p.x,p.y+.6,p.z,.6,LCREAM,0)}}
+{const near=(x,z,d,list)=>list.some(o=>Math.hypot(o.x-x,o.z-z)<d);let tries=0,V_BR=[];const mainRand=rand;rand=mulberry32(4471);   // its own random stream, so the hamlets stay put when anything else changes
+ while((villages.length<32||trans.length<9)&&tries++<9000){
+   const r=R(880,1880),a=RES_A+R(-.74,.74),x=Math.cos(a)*r,z=Math.sin(a)*r,Zn=resZone(x,z);
+   if(Math.hypot(x-TREE.x,z-TREE.z)<760)continue;
+   const pv=sstep(.12,.7,Zn.zr);
+   if(chance(pv)){if(villages.length>=32||near(x,z,78,villages)||near(x,z,80,trans))continue;
+     const fam={plas:chance(.78),roof:pick(VROOF)};villages.push({x,z,zr:Zn.zr,h:chance(.14)?R(320,460):chance(.4)?R(70,140):R(140,280),fam,yaw0:R(0,6.283),name:vNames[villages.length],balconies:[],vill:true})}
+   else{if(trans.length>=9||Zn.zr>.75||near(x,z,95,trans)||near(x,z,72,villages))continue;
+     trans.push({x,z,w:R(16,24),d:R(16,24),h:R(170,340)*(1.1-Zn.zr*.5),type:chance(.5)?'res':'com',trans:.25+Zn.zr*.6,rc:pick(ROOFS),name:vNames[63-trans.length],cell:RI(0,GENERAL.length-1),balconies:[]})}
+ }
+ for(const V of villages)planVillage(V);
+ // rope bridges between neighbouring hamlets: decks at about the same height, facing each other
+ {const pairs=[];
+  for(let i=0;i<villages.length;i++)for(let j=i+1;j<villages.length;j++){const A=villages[i],Bv=villages[j];if(Math.hypot(A.x-Bv.x,A.z-Bv.z)>200)continue;
+    for(const o of A.nodes)for(const q of Bv.nodes){if(Math.abs(o.y-q.y)>9)continue;const ea=nodeEdge(o),eb=nodeEdge(q),dx=eb.p.x-ea.p.x,dz=eb.p.z-ea.p.z,dh=Math.hypot(dx,dz);
+      if(dh<14||dh>170)continue;const fa=(dx*ea.nx+dz*ea.nz)/dh,fb=(-dx*eb.nx-dz*eb.nz)/dh;if(fa<.5||fb<.5)continue;pairs.push([dh*(2.2-fa-fb),ea,eb])}}
+  pairs.sort((a,b)=>a[0]-b[0]);V_BR=[];
+  for(const [,ea,eb] of pairs){if(V_BR.length>=140)break;if(ea.o.gap||eb.o.gap)continue;
+    if(V_BR.filter(([p,q])=>p.o.V===ea.o.V&&q.o.V===eb.o.V||p.o.V===eb.o.V&&q.o.V===ea.o.V).some(([p])=>Math.abs(p.p.y-ea.p.y)<25))continue;   // several between two hamlets, at different heights
+    {const steps=Math.ceil(ea.p.distanceTo(eb.p)/4);let hit=false;for(const V of [ea.o.V,eb.o.V])for(const b of V.rocks)for(let k=1;k<steps&&!hit;k++){const t=k/steps,x=lerp(ea.p.x,eb.p.x,t)-V.x-b.x,z=lerp(ea.p.z,eb.p.z,t)-V.z-b.z,y=lerp(ea.p.y,eb.p.y,t);if(y<b.y1&&y>b.y0&&Math.hypot(x,z)<rockRy(b,Math.atan2(z,x),y)+1)hit=true}if(hit)continue}
+    ea.o.gap=eb.o.gap=true;V_BR.push([ea,eb])}}
+ for(const V of villages){const B=bufs2();buildVillage(V,B);addBufs(B);addDetail(B)}
+ for(const T of trans){const B=bufs2();genTower(T,B);addBufs(B);addDetail(B)}
+ for(const [ea,eb] of V_BR)ropeBridge(S,ea.p,eb.p);
+ rand=mainRand;window.__village={villages:villages.length,trans:trans.length,bridges:V_BR.length};
+ // the floor of the hamlet country: woods and meadows, threaded with paths, dotted with trees
+ {const tex=canvasTex(512,512,(g,w,h)=>{g.fillStyle='#9dbb86';g.fillRect(0,0,w,h);const cs=['#87aa72','#a9c58f','#7aa06a','#b7cf98','#95b67e','#c7d6a4','#6f9a64'];
+    for(let i=0;i<1400;i++){g.fillStyle=cs[Math.floor(trand()*cs.length)];g.globalAlpha=.35+trand()*.4;const r=4+trand()*20;g.beginPath();g.ellipse(trand()*w,trand()*h,r,r*(.5+trand()*.6),trand()*3,0,7);g.fill()}
+    g.globalAlpha=.55;g.strokeStyle='#e4d8b8';g.lineWidth=4;for(let i=0;i<5;i++){g.beginPath();let x=trand()*w,y=0;g.moveTo(x,y);while(y<h){x+=trand()*60-30;y+=40;g.lineTo(x,y)}g.stroke()}});
+  tex.repeat.set(16,16);const m=new THREE.MeshLambertMaterial({map:tex});washify(m);
+  const ring=new THREE.Mesh(new THREE.RingGeometry(845,2400,56,4,-RES_A-1.35,2.7),m);ring.rotation.x=-Math.PI/2;ring.position.y=.3;ring.receiveShadow=true;scene.add(ring);
+  for(let i=0;i<1500;i++){const r=R(870,2380),a=RES_A+R(-1.3,1.3),x=Math.cos(a)*r,z=Math.sin(a)*r;if(Math.hypot(x-TREE.x,z-TREE.z)<640)continue;
+    if(villages.some(v=>Math.hypot(v.x-x,v.z-z)<v.rockR*1.3)||trans.some(t=>Math.hypot(t.x-x,t.z-z)<34))continue;
+    addSprite(SPRS.trees,x,0,z,R(14,32),treeCell(chance(.12)?PINKS:chance(.1)?AUTUMN:GREENS),0,chance(.5)?1:-1)}}
+}
+XF=null;
 addBufs(S);
 const spPeople=spriteMesh(SPRS.people,700,false,SC.people),spTrees=spriteMesh(SPRS.trees,5600,false,SC.tree);
 // lantern glow halos (night)
@@ -1381,6 +1765,23 @@ const sky=new THREE.Mesh(new THREE.SphereGeometry(8000,32,16),new THREE.ShaderMa
       #include <colorspace_fragment>
     }`}));
 sky.frustumCulled=false;scene.add(sky);
+// horizon: two painted mountain rings far out, following the camera. The post fog veils the sky by half, so their contrast is pushed
+// away from the horizon colour (k<0); they dim with the sky at night
+const horMeshes=[],horTex=[];
+for(const [r,rep,k,dy,H] of[[6900,6,-.7,260,4200],[7700,5,-.2,60,3600]]){const t=new THREE.Texture();t.colorSpace=THREE.SRGBColorSpace;t.wrapS=THREE.RepeatWrapping;t.anisotropy=4;horTex.push(t);
+  const u={map:{value:t},hor:skyU.hor,rep:{value:rep},k:{value:k},vis:{value:0}};
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,H,128,1,true),new THREE.ShaderMaterial({uniforms:u,side:THREE.BackSide,transparent:true,depthWrite:false,fog:false,
+    vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+    fragmentShader:`uniform sampler2D map;uniform vec3 hor;uniform float rep,k,vis;varying vec2 vUv;
+      void main(){vec4 c=texture2D(map,vec2(vUv.x*rep,vUv.y));float lum=clamp(dot(hor,vec3(.3,.59,.11))/.8,.12,1.);gl_FragColor=vec4(max(mix(c.rgb*lum,hor,k),0.),c.a*vis*smoothstep(.08,.24,vUv.y));
+      #include <colorspace_fragment>
+      }`}));
+  m.userData.dy=dy;m.frustumCulled=false;m.renderOrder=-1;horMeshes.push(m);scene.add(m)}
+// the paintings are made to tile, but not perfectly: the last strip is cross-faded over the first, so the seam disappears
+function putHorizon(i,im){const W=im.width,H=im.height,f=Math.round(W*.12),c=document.createElement('canvas');c.width=W-f;c.height=H;const g=c.getContext('2d');
+  g.drawImage(im,0,0);const t=document.createElement('canvas');t.width=f;t.height=H;const tg=t.getContext('2d');tg.drawImage(im,W-f,0,f,H,0,0,f,H);
+  tg.globalCompositeOperation='destination-in';const gr=tg.createLinearGradient(0,0,f,0);gr.addColorStop(0,'rgba(0,0,0,1)');gr.addColorStop(1,'rgba(0,0,0,0)');tg.fillStyle=gr;tg.fillRect(0,0,f,H);
+  g.drawImage(t,0,0);horTex[i].image=c;horTex[i].needsUpdate=true;horMeshes[i].material.uniforms.vis.value=1}
 const starMat=new THREE.PointsMaterial({color:0xffffff,size:2,sizeAttenuation:false,transparent:true,opacity:0,fog:false,depthWrite:false});
 const stars=new THREE.Points(new THREE.BufferGeometry(),starMat);
 {const p=[];for(let i=0;i<900;i++){const v=new V3(R(-1,1),R(.05,1),R(-1,1)).normalize().multiplyScalar(7000);p.push(v.x,v.y,v.z)}stars.geometry.setAttribute('position',new THREE.Float32BufferAttribute(p,3));stars.frustumCulled=false;scene.add(stars)}
@@ -1498,8 +1899,107 @@ function buildRider(o){
   if(o.cat){b.at(ico1,0,.3,-1.2,.19,.25,.2,BLACK);b.at(ico1,0,.6,-1.14,.15,.14,.15,BLACK);b.box(-.09,.75,-1.14,.07,.1,.05,BLACK);b.box(.09,.75,-1.14,.07,.1,.05,BLACK)}
   return b.mesh(M.flat);
 }
+
+/* ---------- the heroine: a small 3D figure; her hair, sleeves, hakama hems, ribbon and the broom's bristles move in the wind ---------- */
+// every vertex carries aFx = (flex 0 at the root .. 1 at the tip, how far it may move); the vertex shader streams it back with speed,
+// lets it droop when hovering, lifts it when sinking, swings it out on turns and ripples it
+const heroU={uPh:{value:0},uT:{value:0},uW:{value:0},uVy:{value:0},uSide:{value:0}};
+const heroMat=(()=>{const m=new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide});
+  m.onBeforeCompile=sh=>{Object.assign(sh.uniforms,heroU);
+    sh.vertexShader='attribute vec2 aFx;uniform float uPh,uW,uVy,uSide;\n'+sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+    {float f=aFx.x,a=aFx.y,f2=f*f,w=uW;vec3 d=vec3(0.);
+     d.z-=f2*a*(1.1*w-.75*(1.-w));
+     d.y+=f2*a*(-1.05*(1.-w)+.1*w-uVy*.55);
+     float ph=uPh-f*6.5+position.x*4.+position.z*1.7+position.y*2.;
+     d.x+=sin(ph)*f*a*(.05+.2*w)+f2*a*uSide;
+     d.y+=cos(ph*1.13+1.7)*f*a*(.035+.15*w);
+     transformed+=d;}`)};
+  washify(m);return m})();
+function heroBuilder(){
+  const P=[],N=[],K=[],F=[],v=new V3(),n=new V3();
+  const put=(x,y,z,nx,ny,nz,c,f,a)=>{P.push(x,y,z);N.push(nx,ny,nz);K.push(c.r,c.g,c.b);F.push(f,a)};
+  return{
+    // a three.js primitive placed by a matrix; fx(localPoint) may give each vertex its own flex
+    add(g,mtx,col,fx){g=g.index?g.toNonIndexed():g.clone();g.applyMatrix4(mtx);const pa=g.attributes.position,na=g.attributes.normal;
+      for(let i=0;i<pa.count;i++){v.fromBufferAttribute(pa,i);n.fromBufferAttribute(na,i);const f=fx?fx(v):[0,0];put(v.x,v.y,v.z,n.x,n.y,n.z,col,f[0],f[1])}},
+    // a flat strip along a spine of points; side is the direction across it (or computed from the spine and 'up')
+    ribbon(pts,w0,w1,col,amp,side,col2){const m=pts.length,L=[],R=[],NN=[];
+      for(let i=0;i<m;i++){const t=pts[Math.min(m-1,i+1)].clone().sub(pts[Math.max(0,i-1)]).normalize(),sd=side?side.clone():new V3().crossVectors(t,UP).normalize(),w=lerp(w0,w1,i/(m-1))/2;
+        L.push(pts[i].clone().addScaledVector(sd,-w));R.push(pts[i].clone().addScaledVector(sd,w));NN.push(new V3().crossVectors(sd,t).normalize())}
+      const cc=i=>col2?col.clone().lerp(col2,clamp((i/(m-1)-.55)/.35,0,1)):col;
+      for(let i=0;i<m-1;i++){const q=[[L[i],i],[R[i],i],[R[i+1],i+1],[L[i],i],[R[i+1],i+1],[L[i+1],i+1]];
+        for(const [pp,k] of q)put(pp.x,pp.y,pp.z,NN[k].x,NN[k].y,NN[k].z,cc(k),k/(m-1),amp)}},
+    mesh(){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(N,3));
+      g.setAttribute('color',new THREE.Float32BufferAttribute(K,3));g.setAttribute('aFx',new THREE.Float32BufferAttribute(F,2));g.computeBoundingSphere();
+      const me=new THREE.Mesh(g,heroMat);me.castShadow=true;me.frustumCulled=false;return me}}
+}
+const _hm=new THREE.Matrix4(),_hq=new THREE.Quaternion(),_hs=new V3();
+const hM=(x,y,z,sx=1,sy=1,sz=1,q)=>_hm.compose(new V3(x,y,z),q||_hq.identity(),_hs.set(sx,sy,sz)).clone();
+// a rod from a to b
+function hLimb(H,a,b,r0,r1,col,fx){const d=b.clone().sub(a),L=d.length(),q=new THREE.Quaternion().setFromUnitVectors(UP,d.normalize());
+  H.add(new THREE.CylinderGeometry(r1,r0,L,9),_hm.compose(a.clone().add(b).multiplyScalar(.5),q,_hs.set(1,1,1)).clone(),col,fx)}
+function buildHeroine(){
+  const V=(x,y,z)=>new V3(x,y,z),KIMO=C('#f3ede2'),ROSE=C('#e9a99c'),HAKA=C('#c87a6c'),OBI=C('#5f7299'),HAIR=C('#3b302c'),RIB=C('#e48c7c'),HANDLE=C('#b8895c'),BAND=C('#d98c74');
+  const root=new THREE.Group();
+  // the broom and the cat riding on it: they don't lean with her
+  const Bm=heroBuilder();
+  Bm.add(new THREE.CylinderGeometry(.05,.065,3.8,8),hM(0,0,.18,1,1,1,new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI/2,0,0))),HANDLE);
+  Bm.add(new THREE.SphereGeometry(.085,8,6),hM(0,.01,2.08),HANDLE);
+  for(const [z,c] of[[-1.42,BAND],[-1.56,OBI],[1.7,BAND]])Bm.add(new THREE.CylinderGeometry(.1,.1,.08,10),hM(0,0,z,1,1,1,new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI/2,0,0))),c);
+  Bm.add(new THREE.ConeGeometry(.3,1.25,12,1,true),hM(0,0,-2.1,1,1,1,new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI/2,0,0))),C('#d8b26c'),p=>[clamp((-1.475-p.z)/1.25,0,1),.12]);
+  for(let k=0;k<44;k++){const a=k/44*6.283+R(-.1,.1),r0=.07,r1=R(.22,.38),c=C(pick(['#e2c07e','#d9b46e','#eccb8c','#cfa862']));
+    const pts=[0,1,2,3].map(i=>{const t=i/3;return V(Math.cos(a)*lerp(r0,r1,Math.sqrt(t)),Math.sin(a)*lerp(r0,r1,Math.sqrt(t)),-1.5-t*R(1.15,1.4))});
+    Bm.ribbon(pts,.07,.035,c,.16,new V3(-Math.sin(a),Math.cos(a),0))}
+  // a little black cat sitting behind her, tail streaming
+  const CAT=C('#2e2826');
+  Bm.add(new THREE.SphereGeometry(.2,10,8),hM(0,.22,-1.08,1,1.15,1.1),CAT);Bm.add(new THREE.SphereGeometry(.15,10,8),hM(0,.52,-1.0),CAT);
+  for(const e of[-1,1])Bm.add(new THREE.ConeGeometry(.055,.12,5),hM(e*.08,.66,-1,1,1,1,new THREE.Quaternion().setFromEuler(new THREE.Euler(0,0,-e*.3))),CAT);
+  Bm.ribbon([0,1,2,3,4].map(i=>V(0,.12+i*.03,-1.25-i*.17)),.07,.05,CAT,.55);
+  const broom=Bm.mesh();root.add(broom);
+  // her body hangs from a pivot at the hips so it can lean forward and back
+  const body=new THREE.Group();body.position.set(0,.3,.12);root.add(body);
+  const H=heroBuilder(),o=V(0,.3,.12),Q=(x,y,z)=>V(x,y,z).sub(o);
+  // hakama: thighs along the broom, wide legs hanging below, hems that flutter
+  for(const e of[-1,1]){
+    hLimb(H,Q(e*.17,.3,.05),Q(e*.27,.2,.55),.2,.17,HAKA);
+    H.add(new THREE.CylinderGeometry(.17,.3,.72,12,3,true),hM(...Q(e*.29,-.12,.6).toArray()),HAKA,p=>[clamp((-.06-p.y)/.72,0,1),.3]);
+    H.add(new THREE.BoxGeometry(.13,.12,.26),hM(...Q(e*.29,-.5,.66).toArray()),C('#f4f0e6'));H.add(new THREE.BoxGeometry(.16,.05,.3),hM(...Q(e*.29,-.58,.66).toArray()),C('#7a5a42'))}
+  H.add(new THREE.CylinderGeometry(.3,.36,.34,12),hM(...Q(0,.4,.1).toArray()),HAKA);
+  // kimono body, crossed collar, obi with its bow at the back
+  H.add(new THREE.CylinderGeometry(.22,.31,.72,12),hM(...Q(0,.88,.14).toArray(),1,1,.9),KIMO);
+  for(const e of[-1,1])H.add(new THREE.BoxGeometry(.07,.42,.03),hM(...Q(e*.07,1,.39).toArray(),1,1,1,new THREE.Quaternion().setFromEuler(new THREE.Euler(-.2,0,e*.5))),ROSE);
+  H.add(new THREE.CylinderGeometry(.32,.33,.2,14),hM(...Q(0,.58,.13).toArray(),1,1,.92),OBI);
+  for(const e of[-1,1])H.add(new THREE.SphereGeometry(.13,8,6),hM(...Q(e*.13,.66,-.17).toArray(),1.1,.7,.5),OBI);
+  for(const e of[-1,1])H.ribbon([0,1,2,3].map(i=>Q(e*(.05+i*.03),.6-i*.1,-.2-i*.14)),.16,.14,OBI,.5);
+  // arms reaching forward to the handle; long furisode sleeves hang from them, cream shading to rose at the hem
+  for(const e of[-1,1]){const sh=Q(e*.3,1.12,.16),el=Q(e*.34,.72,.48),ha=Q(e*.1,.08,.92);
+    hLimb(H,sh,el,.1,.09,KIMO);hLimb(H,el,ha,.08,.06,KIMO);H.add(new THREE.SphereGeometry(.07,8,6),hM(...ha.toArray()),SKIN);
+    const ax=ha.clone().sub(sh).normalize();
+    for(let j=0;j<2;j++){const r0=sh.clone().lerp(el,.5+j*.5).add(V(e*.04,-.02,0));
+      H.ribbon([0,1,2,3,4].map(i=>r0.clone().add(V(e*.03*i,-.15*i,-.13*i))),.34,.4,KIMO,.55,ax,ROSE)}}
+  // head, hair cap, fringe, face
+  H.add(new THREE.CylinderGeometry(.07,.08,.16,8),hM(...Q(0,1.27,.2).toArray()),SKIN);
+  H.add(new THREE.SphereGeometry(.26,16,12),hM(...Q(0,1.52,.23).toArray()),SKIN);
+  H.add(new THREE.SphereGeometry(.285,16,12),hM(...Q(0,1.57,.18).toArray(),1,1,1.03),HAIR);
+  for(let i=0;i<5;i++){const x=-.16+i*.08;H.ribbon([Q(x,1.75,.36),Q(x*1.05,1.62,.46),Q(x*1.1,1.5,.47)],.11,.06,HAIR,.06)}
+  for(const e of[-1,1]){H.ribbon([Q(e*.24,1.6,.3),Q(e*.27,1.42,.34),Q(e*.26,1.24,.32)],.12,.06,HAIR,.15)}
+  for(const e of[-1,1]){H.add(new THREE.SphereGeometry(1,8,6),hM(...Q(e*.09,1.53,.475).toArray(),.032,.05,.02),C('#2a2220'));H.add(new THREE.SphereGeometry(.035,6,4),hM(...Q(e*.14,1.44,.45).toArray(),1,.6,.4),C('#f2b4a8'))}
+  // long hair streaming back
+  H.ribbon([0,1,2,3,4,5,6].map(i=>{const t=i/6;return Q(0,1.5-.2*t-.3*t*t,-.05-1.35*t)}),.46,.22,HAIR,1);   // the mass of it, then locks over it
+  for(let k=0;k<15;k++){const x=-.22+k*.0314,y=1.62-Math.abs(x)*.7+R(-.05,.05),sp=R(.8,1.15),dy=R(-.06,.06);
+    H.ribbon([0,1,2,3,4,5,6].map(i=>{const t=i/6;return Q(x*(1+t*.5)+R(-.015,.015),y-.18*t-.32*t*t+dy*t,-.02-1.55*t*sp)}),.2,.07,HAIR,1.05)}
+  // ribbon bow with two long tails
+  for(const e of[-1,1])H.add(new THREE.SphereGeometry(.12,8,6),hM(...Q(e*.13,1.78,-.08).toArray(),1.2,.75,.45,new THREE.Quaternion().setFromEuler(new THREE.Euler(0,0,e*.35))),RIB);
+  H.add(new THREE.SphereGeometry(.06,6,5),hM(...Q(0,1.77,-.08).toArray()),RIB);
+  for(const e of[-1,1])H.ribbon([0,1,2,3,4,5].map(i=>Q(e*(.04+i*.035),1.74-i*.07,-.12-i*.17)),.1,.08,RIB,.9);
+  // satchel at her hip, strap across her chest
+  H.add(new THREE.BoxGeometry(.16,.36,.44),hM(...Q(.38,.58,-.02).toArray(),1,1,1,new THREE.Quaternion().setFromEuler(new THREE.Euler(.15,0,0))),C('#a07250'));
+  H.add(new THREE.BoxGeometry(.06,.78,.06),hM(...Q(.02,1.0,.36).toArray(),1,1,1,new THREE.Quaternion().setFromEuler(new THREE.Euler(-.15,0,.72))),C('#7d5a40'));
+  const bm=H.mesh();body.add(bm);
+  root.userData.body=body;return root;
+}
 const player=new THREE.Group();player.rotation.order='YXZ';
-const pMesh=buildRider({kimono:C('#f1ebe0'),hakama:C('#b23a34'),obi:C('#3e5c8a'),hair:BLACK,ribbon:true,cat:true});pMesh.scale.setScalar(1.6);player.add(pMesh);
+const pMesh=buildHeroine(),heroBody=pMesh.userData.body;pMesh.scale.setScalar(1.6);player.add(pMesh);
 const parcel=new THREE.Mesh(new THREE.BoxGeometry(.75,.6,.5),new THREE.MeshLambertMaterial({color:0x7a4e9a}));parcel.position.set(0,1.25,-.38);parcel.visible=false;player.add(parcel);
 scene.add(player);
 // the painted player: three views from behind on a card that faces the camera; once loaded, the 3D model only casts the shadow
@@ -1528,8 +2028,9 @@ const routes=nodes.map(()=>[]);
 const hubs=[];routes.forEach((r,i)=>{if(r.length)hubs.push(i)});
 // other flyers are painted billboards that turn to face their direction of travel
 const flyArr=[];
-for(let i=0;i<150;i++){
+for(let i=0;i<190;i++){
   let n;
+  if(i>=150&&villages.length){const V=pick(villages),rr=R(40,90);n={cx:V.x,cz:V.z,rx:rr,rz:rr*R(.7,1.3),y:R(15,Math.max(30,V.h*.55)),a:R(0,6.28),sp:R(12,24)*(chance(.5)?1:-1),bob:R(1,4)};n.f=1;n.lx=0;n.lz=0;npcs.push(n);addSprite(flyArr,0,-999,0,R(4.4,5),16+(i%4),.5,1);continue}
   if(i<100&&hubs.length){const from=pick(hubs);n={r:1,from,to:pick(routes[from]),t:rand(),sp:R(20,34),wait:0,ph:R(0,6)}}
   else if(i<136){const T=pick(towers);n={cx:T.x,cz:T.z,rx:T.w/2+R(46,58),rz:T.d/2+R(46,58),y:R(30,T.h-10),a:R(0,6.28),sp:R(14,30)*(chance(.5)?1:-1),bob:R(1,5)}}
   else n={cx:R(-150,150),cz:R(-150,150),rx:R(250,800),rz:R(250,800),y:R(790,900),a:R(0,6.28),sp:R(40,60)*(chance(.5)?1:-1),bob:R(3,10)};
@@ -1613,8 +2114,10 @@ goHome();
 let job=null,started=false,dayT=.3,clock=0;
 function newJob(){
   const here=P.pos;let from,to,n=0;
-  do{from=pick2(allDoors);n++}while(n<50&&(from.pos.distanceTo(here)<80||from.pos.distanceTo(here)>650));
-  n=0;do{to=pick2(allDoors);n++}while(n<80&&(to.T===from.T||to.pos.distanceTo(from.pos)<180||to.pos.distanceTo(from.pos)>900));
+  // pick up somewhere fairly near; deliver to the core, the town and transition band, or the villages, with about even odds
+  do{from=pick2(jobSpots);n++}while(n<80&&(from.pos.distanceTo(here)<60||from.pos.distanceTo(here)>600));
+  const zone=pick2([0,0,1,2,2]),ok=t=>t.T!==from.T&&t.pos.distanceTo(from.pos)>160&&t.pos.distanceTo(from.pos)<1300;
+  const cand=jobSpots.filter(t=>t.zone===zone&&ok(t));to=cand.length?pick2(cand):(jobSpots.filter(ok)[0]?pick2(jobSpots.filter(ok)):pick2(jobSpots));
   job={from,to,item:ITEMS[Math.floor(Math.random()*ITEMS.length)],stage:0,t0:0,par:0};
   setTarget(from.pos,0xffc94a);showJob();
 }
@@ -1775,7 +2278,7 @@ function applyTime(){
 }
 
 /* ---------- main loop ---------- */
-const camR=new V3(),named=towers.concat(mids);let detTick=0;
+const camR=new V3(),named=towers.concat(mids,villages,trans);let detTick=0;
 const fwd=new V3(),tmp=new V3(),look=new V3();let last=performance.now(),bumpCd=0,nearName='',toriiCd=0;
 function frame(now){
   requestAnimationFrame(frame);
@@ -1784,17 +2287,18 @@ function frame(now){
     dayT=(dayT+dt/420*ST.timeSpeed)%1;
     if(setPanel.classList.contains('open')&&(++detTick)%15===0)showS(SET[1]);
     // steering
-    const yi=((key.KeyA||key.ArrowLeft)?1:0)-((key.KeyD||key.ArrowRight)?1:0),pi=(key.ArrowUp?1:0)-(key.ArrowDown?1:0);
+    const sh=key.ShiftLeft||key.ShiftRight,yi=((key.ArrowLeft||(!sh&&key.KeyA))?1:0)-((key.ArrowRight||(!sh&&key.KeyD))?1:0),pi=(key.ArrowUp?1:0)-(key.ArrowDown?1:0);
     P.yawVel=damp(P.yawVel,yi*1.5,7,dt);P.pitchVel=damp(P.pitchVel,pi*1.1,7,dt);
     const dyaw=P.yawVel*dt-mdx*.0022*ST.mouse,dpitch=P.pitchVel*dt-mdy*.0022*ST.mouse*(ST.invertY?-1:1);mdx=mdy=0;
     P.yaw+=dyaw;P.pitch=clamp(P.pitch+dpitch,photo?-1.55:-1.3,photo?1.55:1.3);
     P.roll=damp(P.roll,clamp(-dyaw/dt*.45,-.9,.9),5,dt);
-    // nothing pressed: hang in the air and look around. W flies forward, Shift sprints, S backs off
-    const boost=key.ShiftLeft||key.ShiftRight,go=key.KeyW||boost,tgt=(go?(boost?120:60)*ST.flySpeed:key.KeyS?-14:0)*(photo?.35:1);
+    // nothing pressed: hang in the air and look around. W flies forward, Space sprints, S backs off, Shift+A/D slides sideways without turning
+    const boost=key.Space,go=key.KeyW||boost,tgt=(go?(boost?120:60)*ST.flySpeed:key.KeyS?-14:0)*(photo?.35:1);
     P.speed=damp(P.speed,tgt,go?1.2:key.KeyS?2.2:1.8,dt);
-    P.vy=damp(P.vy,((key.Space||key.KeyE)?30:0)-((key.KeyQ||key.KeyC)?30:0),4,dt);
+    P.side=damp(P.side||0,(sh?((key.KeyD?1:0)-(key.KeyA?1:0)):0)*28*ST.flySpeed*(photo?.35:1),3,dt);
+    P.vy=damp(P.vy,((key.KeyE)?30:0)-((key.KeyQ||key.KeyC)?30:0),4,dt);
     fwd.set(Math.sin(P.yaw)*Math.cos(P.pitch),Math.sin(P.pitch),Math.cos(P.yaw)*Math.cos(P.pitch));
-    P.pos.addScaledVector(fwd,P.speed*dt);P.pos.y+=P.vy*dt;
+    P.pos.addScaledVector(fwd,P.speed*dt);P.pos.x-=Math.cos(P.yaw)*P.side*dt;P.pos.z+=Math.sin(P.yaw)*P.side*dt;P.pos.y+=P.vy*dt;
     if(P.pos.y<1.8){P.pos.y=1.8;if(P.pitch<0)P.pitch=damp(P.pitch,.02,5,dt)}
     if(P.pos.y>1500)P.pos.y=1500;
     const hr=Math.hypot(P.pos.x,P.pos.z);if(hr>4300){P.pos.x*=4300/hr;P.pos.z*=4300/hr}
@@ -1833,6 +2337,12 @@ function frame(now){
   // player visuals + camera
   player.position.copy(P.pos);player.position.y+=Math.sin(clock*2.1)*.12;
   player.rotation.set(-P.pitch,P.yaw,P.roll);
+  {const acc=(P.speed-(P.ls??P.speed))/Math.max(dt,1e-3);P.ls=P.speed;P.acc=damp(P.acc||0,acc,3,dt);   // lean into acceleration, sit back when braking
+   heroBody.rotation.x=damp(heroBody.rotation.x,clamp(P.acc*.007+P.speed*.0024,-.35,.55),4,dt);
+   pMesh.rotation.x=damp(pMesh.rotation.x,clamp(P.acc*.0025,-.14,.16),3,dt);
+   heroU.uPh.value=(heroU.uPh.value+dt*(3+10*heroU.uW.value))%6283.2;fallsTex.offset.y=(fallsTex.offset.y-dt*1.4)%1;
+   for(const m of horMeshes)m.position.set(camera.position.x,camera.position.y+m.userData.dy,camera.position.z);heroU.uW.value=damp(heroU.uW.value,clamp(Math.abs(P.speed)/100,0,1),2.5,dt);heroU.uVy.value=damp(heroU.uVy.value,clamp((P.vy||0)/40,-.8,.8),4,dt);
+   heroU.uSide.value=damp(heroU.uSide.value,clamp(P.roll*.5+(P.side||0)/60,-.6,.6),4,dt)}
   if(photo){   // photo mode: the camera is where the (hidden) rider is, so it can go right up to a railing and look straight down
     camera.position.lerp(P.pos,window.__camSnap?1:1-Math.exp(-10*dt));look.copy(camera.position).add(fwd);camera.lookAt(look);
   }else{
@@ -1840,6 +2350,7 @@ function frame(now){
     camera.position.lerp(tmp,window.__camSnap?1:1-Math.exp(-7*dt));
     look.copy(P.pos).addScaledVector(fwd,12);look.y+=1.4;camera.lookAt(look);
   }
+  if(window.__orbit!=null){const a=P.yaw+window.__orbit,r=window.__orbitR||7;camera.position.set(P.pos.x+Math.sin(a)*r,P.pos.y+1.5,P.pos.z+Math.cos(a)*r);camera.lookAt(P.pos.x,P.pos.y+1.2,P.pos.z)}   // debug: look at the rider from any side
   updatePlayerCard();
   const fov=(photo&&photoFov?photoFov:ST.fov)+Math.max(0,P.speed)*.2;if(Math.abs(camera.fov-fov)>.05){camera.fov=damp(camera.fov,fov,3,dt);camera.updateProjectionMatrix()}
   // npcs
@@ -1894,7 +2405,7 @@ function bench(q,n=6){const gl=renderer.getContext(),px=new Uint8Array(4),sh=sun
     renderFrame(q);
     gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,px);if(i>1)best=Math.min(best,performance.now()-t0)}
   sun.castShadow=sh;return +best.toFixed(1)}
-window.__dbg={bench,P,towers,mids,terraces,allDoors,cats,renderer,detailMeshes,flyMesh,cloudMesh,applyTime,get job(){return job},set dayT(v){dayT=v}};
+window.__dbg={bench,P,towers,links,mids,villages,trans,terraces,allDoors,cats,renderer,detailMeshes,flyMesh,cloudMesh,applyTime,get job(){return job},set dayT(v){dayT=v}};
 </script>
 </body>
 </html>
